@@ -1,0 +1,2228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dr Benson's Prefix Panic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f7f7f7; --ink:#535353; --soft:#acacac; --faint:#e2e2e2; --sail:#ffffff;
+  color-scheme:light dark;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){--bg:#202124;--ink:#bdc1c6;--soft:#6b6f74;--faint:#34373b;--sail:#e8eaed;}
+}
+:root[data-theme="dark"]{--bg:#202124;--ink:#bdc1c6;--soft:#6b6f74;--faint:#34373b;--sail:#e8eaed;}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);background:var(--bg)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+  font-family:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif}
+.pix{font-family:"Press Start 2P",ui-monospace,"Courier New",monospace}
+
+/* the whole game is one screen: header, HUD, then the play area takes what's left */
+.wrap{max-width:1280px;margin:0 auto;padding:12px 16px;
+  height:100%;
+  display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:10px}
+.head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px}
+h1{font-size:clamp(11px,2.4vw,18px);margin:0;font-weight:400;line-height:1.4}
+.levels{display:flex;gap:6px}
+.levels button{font:inherit;font-size:9px;color:var(--ink);background:var(--bg);border:2px solid var(--ink);padding:7px 8px;cursor:pointer;display:flex;align-items:center;gap:6px}
+.levels button i{display:block;width:8px;height:8px}
+.levels button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+button:focus-visible,input:focus-visible{outline:3px solid #2f8fd1;outline-offset:2px}
+.hud{display:flex;flex-wrap:wrap;gap:6px 20px;align-items:center;justify-content:space-between;font-size:10px}
+.hud > div{display:flex;align-items:center;gap:8px}
+.bar{width:96px;height:12px;border:2px solid var(--ink)}
+.bar i{display:block;height:100%;width:0;transition:width .25s;
+  background:repeating-linear-gradient(90deg,#e8508a 0 6px,#f2c230 6px 12px,#2f8fd1 12px 18px,#3fae6a 18px 24px,#f07a2a 24px 30px)}
+#score{font-size:14px;min-width:4ch}
+.streak{color:#f07a2a}
+.lives{display:inline-flex;gap:4px;margin-right:8px}
+.lives i{display:block;width:10px;height:10px;background:#e8508a;box-shadow:0 0 0 2px var(--ink)}
+.lives i.lost{background:var(--faint)}
+.flash{animation:fl .5s steps(2) 1}
+@keyframes fl{50%{opacity:.2}}
+
+.main{min-height:0;display:grid;gap:12px;grid-template-columns:minmax(0,1fr) minmax(270px,360px);grid-template-rows:minmax(0,1fr)}
+.main.idle{grid-template-columns:minmax(0,1fr)}
+.stage{position:relative;min-height:0;min-width:0;border:2px solid var(--ink);cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;overflow:hidden}
+canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block}
+.msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:safe center;text-align:center;padding:10px;pointer-events:none;overflow:auto}
+.msg[hidden]{display:none}
+.msg .big{font-family:"Press Start 2P",ui-monospace,monospace;font-size:clamp(10px,2.2vw,14px);line-height:1.7;margin:0 0 6px;background:var(--bg);padding:2px 8px}
+.msg .small{margin:2px 0;font-size:clamp(14px,2.4vw,16px);max-width:48ch;background:var(--bg);padding:1px 8px}
+.tally{display:grid;grid-template-columns:auto auto;gap:2px 18px;background:var(--bg);padding:6px 12px;margin:4px 0;font-size:15px;text-align:left}
+.tally b{font-family:"Press Start 2P",ui-monospace,monospace;font-weight:400;font-size:11px;text-align:right;align-self:center}
+.tally .tot{border-top:2px solid var(--ink);padding-top:4px}
+.acts{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:8px}
+.btn{pointer-events:auto;font-family:"Press Start 2P",ui-monospace,monospace;font-size:10px;padding:10px 12px;border:2px solid var(--ink);background:var(--ink);color:var(--bg);cursor:pointer}
+.btn.ghost{background:var(--bg);color:var(--ink)}
+.btn:disabled{opacity:.4;cursor:default}
+
+/* question panel: a column beside the grid on wide screens */
+.quiz{min-height:0;min-width:0;overflow:auto;border:2px solid var(--ink)}
+.quiz[hidden]{display:none}
+.card{padding:14px}
+.card.pop{animation:pop .18s steps(3) 1}
+@keyframes pop{0%{transform:translateY(4px)}100%{transform:none}}
+.clue{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px}
+.step{font-size:9px;color:var(--soft);width:100%;display:flex;justify-content:space-between}
+.cv{font-size:clamp(15px,2vw,20px);margin:0;line-height:1.5}
+.kind{font-size:14px}
+.tries{color:var(--ink)}
+.ask{margin:8px 0 0;font-size:16px;line-height:1.45}
+.opts{display:grid;grid-template-columns:1fr;gap:8px;margin-top:12px}
+.opts[hidden],.conv[hidden],.go[hidden]{display:none}
+.opt{font-family:"Press Start 2P",ui-monospace,monospace;font-size:12px;color:var(--ink);background:var(--bg);border:2px solid var(--ink);padding:10px;display:flex;align-items:center;gap:10px;cursor:pointer;min-height:46px;text-align:left;touch-action:manipulation;min-width:0}
+.opt sup.pw{font-size:10px}
+.opt span{padding-block:6px;margin-block:-6px} /* room for raised powers inside the clipped label */
+.opt b{flex:none;width:22px;height:22px;display:grid;place-items:center;color:#fff;font-weight:400;font-size:10px}
+.opt span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.opt.aim{outline:4px dashed currentColor;outline-offset:-2px}
+.stage{cursor:crosshair}
+.opt.ok{outline:4px solid #3fae6a;outline-offset:-2px}
+.opt.no{outline:4px solid #d94040;outline-offset:-2px;opacity:.55}
+.opt.shake{animation:shake .3s steps(4) 1}
+.opt:disabled{cursor:default}
+@keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.conv{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-top:12px}
+.fld{display:flex;align-items:center;gap:6px}
+.fld label{font-size:12px}
+.fld input{font-family:"Press Start 2P",ui-monospace,monospace;font-size:16px;width:6.5ch;padding:8px 6px;border:2px solid var(--ink);background:var(--bg);color:var(--ink);border-radius:0}
+.fld input.bad{border-color:#d94040}
+.fld .u{font-size:12px}
+/* a chunky, centred minus sign so negatives can't be missed in the pixel font */
+.neg{display:inline-block;width:.75em;height:.22em;min-height:2px;background:currentColor;vertical-align:.33em;margin:0 .14em 0 .06em}
+.neg .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.fb{min-height:1.6em;line-height:1.5;margin:12px 0 0;padding-left:10px;border-left:4px solid transparent;font-size:15px}
+.fb.good{border-color:#3fae6a}
+.fb.hint{border-color:#f2c230}
+.fb.bad{border-color:#d94040}
+.fb .w{display:block;font-family:"Press Start 2P",ui-monospace,monospace;font-size:9px;line-height:2;margin-top:4px}
+.go{margin-top:10px}
+.cd{height:8px;border:2px solid var(--ink)}
+.cd i{display:block;height:100%;width:100%;background:var(--ink)}
+
+/* narrow or portrait screens: grid on top, question underneath */
+@media (max-width: 600px), (max-aspect-ratio: 5/4){
+  .main{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(170px,54%) minmax(0,1fr);gap:8px}
+  .main.idle{grid-template-rows:minmax(0,1fr)}
+  .opts{grid-template-columns:1fr 1fr}
+}
+@media (max-width: 560px){
+  .wrap{padding:8px 10px;gap:6px}
+  .head{gap:6px}
+  h1{font-size:11px;width:100%}
+  .levels{width:100%}
+  .levels button{flex:1;justify-content:center;font-size:8px;padding:6px 4px}
+  .hud{font-size:8px;gap:4px 10px}
+  .bar{width:56px;height:10px}
+  #score{font-size:11px}
+  .card{padding:10px}
+  .cv{font-size:15px}
+  .kind{font-size:13px}
+  .ask{font-size:14px;margin-top:4px}
+  .opts{gap:6px;margin-top:8px}
+  .opt{font-size:9px;padding:8px 6px;gap:6px;min-height:42px}
+  .opt sup.pw{font-size:8px}
+  .opt b{width:18px;height:18px;font-size:8px}
+  .fb{font-size:14px;margin-top:8px}
+  .fb .w{font-size:8px}
+  .conv{gap:8px 10px;margin-top:8px}
+  .msg .small{font-size:14px}
+}
+/* short landscape screens (phones on their side, small laptops) */
+@media (max-height: 520px) and (min-aspect-ratio: 5/4){
+  .wrap{padding:6px 10px;gap:6px}
+  h1{font-size:11px}
+  .levels button{font-size:8px;padding:4px 6px}
+  .hud{font-size:8px}
+  .bar{height:10px}
+  #score{font-size:11px}
+  .card{padding:8px 10px}
+  .cv{font-size:14px}
+  .ask{font-size:13px;margin-top:2px}
+  .opts{gap:5px;margin-top:6px}
+  .opt{font-size:9px;min-height:34px;padding:5px 8px}
+  .opt sup.pw{font-size:8px}
+  .opt b{width:18px;height:18px;font-size:8px}
+  .fb{font-size:13px;margin-top:6px}
+  .fb .w{font-size:8px;line-height:1.8}
+}
+.hs{border-collapse:collapse;background:var(--bg);margin:8px 0 4px;font-size:14px;border:2px solid var(--ink)}
+.hs caption{font-family:"Press Start 2P",ui-monospace,monospace;font-size:9px;padding:0 0 6px;background:var(--bg)}
+.hs th,.hs td{padding:3px 10px;text-align:right;white-space:nowrap}
+.hs thead th{font-weight:400;font-size:12px;color:var(--soft);border-bottom:2px solid var(--ink)}
+.hs tbody th,.hs tfoot th{text-align:left;font-weight:700}
+.hs tbody th i{display:inline-block;width:9px;height:9px;margin-right:6px}
+.hs td{font-family:"Press Start 2P",ui-monospace,monospace;font-size:10px}
+.hs tr.cur{background:var(--faint)}
+.hs em{font-style:normal;color:#f07a2a;font-size:12px}
+.hs tfoot tr{border-top:2px solid var(--ink)}
+@media (max-width: 560px){ .hs{font-size:12px}.hs th,.hs td{padding:2px 5px}.hs td{font-size:8px}.hs thead th{font-size:10px} }
+@media (prefers-reduced-motion: reduce){ .card.pop,.opt.shake,.flash{animation:none} }
+.opts.long .opt{font-family:"Atkinson Hyperlegible",system-ui,sans-serif;font-weight:700;font-size:15px;line-height:1.3}
+.opts.long .opt b{font-family:"Press Start 2P",ui-monospace,monospace}
+@media (max-width: 560px){ .opts.long .opt{font-size:13px} }
+@media (max-height: 520px) and (min-aspect-ratio: 5/4){ .opts.long .opt{font-size:13px} }
+.tabs{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.modes{display:flex}
+.modes button{font:inherit;font-size:9px;color:var(--ink);background:var(--bg);border:2px solid var(--ink);padding:7px 10px;cursor:pointer}
+.modes button + button{border-left:0}
+.modes button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.learning .gameonly{visibility:hidden}
+.lnav{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.lnav [hidden]{display:none}
+#learnText{line-height:1.5}
+.learning .main{grid-template-columns:minmax(0,1.2fr) minmax(320px,1fr)}
+.learning #learnTitle{font-size:clamp(17px,1.7vw,24px)}
+.learning #learnText{font-size:clamp(18px,1.1vw + 9px,24px);line-height:1.55;margin-top:10px}
+#learnText p{margin:0 0 .6em}
+#learnText b{font-weight:700;background:var(--faint);padding:0 .2em;border-radius:2px}
+.gate{font-size:15px;max-width:42ch}
+@media (max-width: 600px), (max-aspect-ratio: 5/4){ .learning .main{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(150px,42%) minmax(0,1fr)} }
+@media (max-width: 560px){ .learning #learnText{font-size:17px} .learning #learnTitle{font-size:16px} }
+@media (max-height: 520px) and (min-aspect-ratio: 5/4){ .learning #learnText{font-size:16px} .learning .main{grid-template-columns:minmax(0,1fr) minmax(300px,1fr)} }
+@media (max-width: 560px){ .tabs{width:100%;gap:6px} .tabs .levels{flex:1;width:auto} .modes button{font-size:8px;padding:6px 6px} .lnav{margin-top:10px} }
+@media (max-height: 520px) and (min-aspect-ratio: 5/4){ .modes button{font-size:8px;padding:4px 6px} }
+.bar{position:relative}
+.bar::after{content:"";position:absolute;right:-6px;top:2px;width:4px;height:4px;background:var(--ink)}
+.who{font-size:9px;margin-left:auto;margin-right:8px;padding:5px 7px;border:2px dashed var(--soft)}
+.who[hidden]{display:none}
+.msg input.name{pointer-events:auto;font-family:"Atkinson Hyperlegible",system-ui,sans-serif;font-size:18px;width:16em;max-width:70vw;padding:8px 10px;border:2px solid var(--ink);background:var(--bg);color:var(--ink);border-radius:0}
+.msg .err{color:#d94040}
+.msg .note{border:2px solid #3fae6a}
+.msg .cnbig{font-family:"Press Start 2P",ui-monospace,monospace;font-size:clamp(16px,3.6vw,30px);line-height:1.5;margin:10px 0 12px;padding:10px 16px;background:var(--bg);border:3px solid var(--ink);color:#2f8fd1}
+.msg .cn{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:4px 10px;margin:2px 0 6px;background:var(--bg);padding:4px 10px;border:2px solid var(--ink)}
+.msg .cn span{font-size:13px}
+.msg .cn b{font-family:"Press Start 2P",ui-monospace,monospace;font-weight:400;font-size:clamp(10px,1.8vw,14px);line-height:1.6;color:#2f8fd1}
+.msg .btn.mini{font-size:8px;padding:4px 6px}
+.msg .lb{margin:0 0 2px;font-size:13px;background:var(--bg);padding:0 8px}
+.msg .keys{font-size:13px;opacity:.75}
+sup.pw{font-size:.8em;line-height:0;vertical-align:.5em}
+.pwr{white-space:nowrap}
+.opts.long .opt sup.pw{font-size:.8em}
+@media (max-width: 560px){ .who{margin-left:0} }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="head">
+    <h1 class="pix">Dr Benson's Prefix Panic</h1>
+    <div class="who pix" id="who" hidden></div>
+    <div class="tabs">
+    <nav class="modes pix" id="modes" aria-label="Mode">
+      <button type="button" data-mode="play" aria-pressed="true">Play</button>
+      <button type="button" data-mode="learn" aria-pressed="false">Learn</button>
+    </nav>
+    <nav class="levels pix" id="levels" aria-label="Levels">
+      <button type="button" data-lv="1"><i style="background:#b87333"></i>Bronze</button>
+      <button type="button" data-lv="2"><i style="background:#a3a8ae"></i>Silver</button>
+      <button type="button" data-lv="3"><i style="background:#d9a514"></i>Gold</button>
+      <button type="button" data-lv="4"><i style="background:#4fc3e8"></i>Diamond</button>
+    </nav>
+    </div>
+  </div>
+  <div class="hud pix">
+    <div><span id="barLabel">Speed</span><div class="bar" aria-hidden="true"><i id="barFill"></i></div><span id="count">0/0</span></div>
+    <div class="gameonly"><span class="lives" id="lives" role="img" aria-label="3 lives left"></span><span>Score</span><span id="score">0</span><span class="streak" id="streak"></span></div>
+    <div class="gameonly"><span id="best">High 0</span><span id="clock">00:00</span></div>
+  </div>
+
+  <div class="main idle" id="main">
+    <div class="stage" id="stage" aria-label="An asteroid field, with Dinosaurus Vex flying his ship in the middle.">
+      <canvas id="game"></canvas>
+      <div class="msg" id="msg"></div>
+    </div>
+
+  <section class="quiz" id="quiz" hidden>
+    <div class="card" id="card">
+      <div class="clue">
+        <span class="step pix"><span id="stepNo"></span><span class="tries" id="tries"></span></span>
+        <p class="cv pix" id="clue"></p>
+        
+      </div>
+      <p class="ask" id="ask"></p>
+      <div class="opts" id="opts">
+        <button class="opt" type="button" data-i="0"><b style="background:#2f8fd1">A</b><span></span></button>
+        <button class="opt" type="button" data-i="1"><b style="background:#e8508a">B</b><span></span></button>
+        <button class="opt" type="button" data-i="2"><b style="background:#f07a2a">C</b><span></span></button>
+        <button class="opt" type="button" data-i="3"><b style="background:#8a5cd1">D</b><span></span></button>
+      </div>
+      <p class="fb" id="fb" aria-live="polite"></p>
+      <div class="go" id="go" hidden aria-hidden="true"><div class="cd"><i id="cdFill"></i></div></div>
+    </div>
+  </section>
+  <section class="quiz" id="learn" hidden aria-live="polite">
+    <div class="card" id="learnCard">
+      <div class="clue"><span class="step pix"><span id="learnStep"></span></span><p class="cv pix" id="learnTitle"></p></div>
+      <div id="learnText"></div>
+      <div class="lnav">
+        <button class="btn ghost" type="button" id="lBack">Back</button>
+        <button class="btn" type="button" id="lNext">Next</button>
+        <button class="btn ghost" type="button" id="lAgain" hidden>Start again</button>
+      </div>
+    </div>
+  </section>
+  </div>
+  <input type="file" id="loadIn" accept=".sav,text/plain" hidden>
+</main>
+
+<script>
+// Online leaderboard: paste the Apps Script web app URL (ends in /exec) between the quotes.
+// Leave it empty and the game never goes online. This is the only network call in the series.
+const LEADERBOARD_URL = 'https://script.google.com/macros/s/AKfycbxRko_q7XHVct4crGP3Y6nNXK4w1B9W-TOrziKBcttSi_WR7-Pp78Iy7R5HRm66UorExw/exec';
+(() => {
+let W = 600, H = 340, P = 2;
+const PAL = ['#e8508a', '#f2c230', '#2f8fd1', '#3fae6a', '#f07a2a'];
+const OPT_COL = ['#2f8fd1', '#e8508a', '#f07a2a', '#8a5cd1'], GOOD = '#3fae6a', RED = '#d94040', GOLDC = '#d9a514';
+const RAINBOW = ['#d94040', '#f07a2a', '#f2c230', '#3fae6a', '#2f8fd1', '#8a5cd1'];
+const LETTERS = 'ABCD';
+const $ = id => document.getElementById(id);
+const stage = $('stage'), cv = $('game'), ctx = cv.getContext('2d');
+const msg = $('msg'), quiz = $('quiz'), mainEl = $('main');
+const showQuiz = on => { quiz.hidden = !on; mainEl.classList.toggle('idle', !on); };
+const RM = matchMedia('(prefers-reduced-motion: reduce)');
+let rocks = [];
+
+/* ---------- colours ---------- */
+let C = {};
+function readColors() {
+  const s = getComputedStyle(document.documentElement);
+  for (const k of ['bg', 'ink', 'soft', 'faint', 'sail']) C[k] = s.getPropertyValue('--' + k).trim();
+}
+readColors();
+try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors); } catch (e) {}
+new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+/* ---------- sizing ---------- */
+let scale = 1;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+function resize() {
+  const w = Math.floor(stage.clientWidth), h = Math.floor(stage.clientHeight);
+  if (!w || !h) return;
+  W = w; H = h;
+  P = W > 900 && H > 480 ? 3 : 2;
+  scale = Math.max(1, window.devicePixelRatio || 1);
+  cv.width = Math.round(W * scale); cv.height = Math.round(H * scale);
+  for (const R of rocks) if (!R.decor) { R.x = clamp(R.x, R.rc, Math.max(R.rc, W - R.rc)); R.y = clamp(R.y, R.rc, Math.max(R.rc, H - R.rc)); R.tx = clamp(R.tx, R.rc, Math.max(R.rc, W - R.rc)); R.ty = clamp(R.ty, R.rc, Math.max(R.rc, H - R.rc)); }
+  if (typeof draw === 'function') draw();
+}
+new ResizeObserver(() => resize()).observe(stage);
+
+/* ---------- sound ---------- */
+let actx = null, soundOn = true;
+function beep(f, d, type = 'square', vol = .045) {
+  if (!soundOn) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain(), n = actx.currentTime;
+    o.type = type; o.frequency.setValueAtTime(f, n);
+    g.gain.setValueAtTime(vol, n); g.gain.exponentialRampToValueAtTime(.0001, n + d);
+    o.connect(g).connect(actx.destination); o.start(n); o.stop(n + d);
+  } catch (e) {}
+}
+const fmtT = s => { s = Math.max(0, Math.floor(s)); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
+
+/*GEN-START*/
+/* ---------- numbers, prefixes and the question bank ---------- */
+const SUP = { '-': '⁻', 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' };
+const sup = n => String(n).split('').map(c => SUP[c] || c).join('');
+// Unicode superscripts are tiny (and missing from the pixel font), so powers of ten are drawn as real superscripts
+const UNSUP = { '⁻': '-', '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', 'ⁿ': 'n' };
+const POW_RE = /(?<![\d.])10([⁻⁰¹²³⁴⁵⁶⁷⁸⁹ⁿ]+)/g;
+const unsup = s => s.split('').map(c => UNSUP[c]).join('');
+const powHTML = s => String(s).replace(POW_RE, (m, p) => `<span class="pwr">10<sup class="pw">${unsup(p)}</sup></span>`);
+// splits text into [plain, power, plain, power, …] for the canvas
+const powSegs = s => String(s).replace(POW_RE, '10\u0001$1\u0001').split('\u0001').map((x, i) => i % 2 ? unsup(x) : x);
+const NB = '\u00a0';
+const rnd = n => Math.floor(Math.random() * n);
+const pick = a => a[rnd(a.length)];
+const shuffle = a => { for (let j = a.length - 1; j > 0; j--) { const k = rnd(j + 1); [a[j], a[k]] = [a[k], a[j]]; } return a; };
+// a value is an integer N times 10^x, so there are no rounding errors
+function parseM(s) {
+  s = String(s); const i = s.indexOf('.');
+  return i < 0 ? [parseInt(s, 10), 0] : [parseInt(s.replace('.', ''), 10), -(s.length - i - 1)];
+}
+function norm(N, x) { if (!N) return [0, 0]; while (N % 10 === 0) { N /= 10; x++; } return [N, x]; }
+function dec(N, x) {
+  let s = String(N);
+  if (x >= 0) return s + '0'.repeat(x);
+  const k = -x;
+  if (s.length <= k) s = '0'.repeat(k - s.length + 1) + s;
+  s = s.slice(0, s.length - k) + '.' + s.slice(s.length - k);
+  return s.replace(/0+$/, '').replace(/\.$/, '');
+}
+// SI style: digits in groups of three, but only when there are more than four
+function group(s) {
+  let [i, f] = s.split('.');
+  if (i.length > 4) i = i.replace(/\B(?=(\d{3})+(?!\d))/g, NB);
+  if (f && f.length > 4) f = f.replace(/(\d{3})(?=\d)/g, '$1' + NB);
+  return f ? i + '.' + f : i;
+}
+const num = (N, x) => group(dec(...norm(N, x)));
+function sf(N, x) {
+  [N, x] = norm(N, x); const D = String(N);
+  return (D.length > 1 ? D[0] + '.' + D.slice(1) : D) + ' × 10' + sup(x + D.length - 1);
+}
+const sfExp = (N, x) => { [N, x] = norm(N, x); return x + String(N).length - 1; };
+const fac = d => (d > 0 ? '× ' : '÷ ') + num(1, Math.abs(d));
+const PFX = { G: 9, M: 6, k: 3, '': 0, m: -3, 'µ': -6, n: -9, p: -12 };
+const PNAME = { G: 'giga', M: 'mega', k: 'kilo', '': '', m: 'milli', 'µ': 'micro', n: 'nano', p: 'pico' };
+const PRE = {
+  way: 'That one went the wrong way. ',
+  step: 'That one is out by a factor of 1000. ',
+  none: 'That is the same number with a new unit, so it hasn’t been converted. ',
+  slip: 'Close, but that one is out by a factor of 10. ',
+  slip2: 'That one is out by a factor of 100. ',
+  sign: 'Check the sign of the power. '
+};
+const MAXLAB = 13;
+
+// one prefix conversion; src is a mantissa string or [N, x], in the "from" unit
+function conv(src, from, to, o = {}) {
+  const [N, x] = Array.isArray(src) ? norm(...src) : norm(...parseM(src));
+  const d = PFX[from[0]] - PFX[to[0]];
+  const cx = x + d;
+  const show = (e, asSf) => (asSf ? sf(N, e) : num(N, e));
+  const lab = e => show(e, o.sfOut) + ' ' + to[0] + to[1];
+  const clue = show(x, o.sfIn) + ' ' + from[0] + from[1];
+  const s = Math.sign(d) || 1;
+  const way = d ? [{ dl: -2 * d, k: 'way' }] : [];
+  const sgn = o.sfOut && sfExp(N, cx) ? [{ dl: -2 * sfExp(N, cx), k: 'sign' }] : [];
+  const steps = shuffle([{ dl: -3 * s, k: Math.abs(d) === 3 ? 'none' : 'step' }, { dl: 3 * s, k: 'step' }]);
+  const slips = shuffle([{ dl: 1, k: 'slip' }, { dl: -1, k: 'slip' }]);
+  const extra = Math.abs(d) > 3 ? [{ dl: -d, k: 'none' }] : [];
+  const first = o.sfOut ? sgn.concat(way) : way.concat(sgn);
+  const order = [...first.slice(0, 1), steps[0], slips[0], ...first, ...extra, steps[1], slips[1], { dl: 2, k: 'slip2' }, { dl: -2, k: 'slip2' }];
+  const correct = lab(cx);
+  const opts = [{ lab: correct, k: 'ok' }], seen = new Set([correct]);
+  for (const c of order) {
+    if (opts.length === 4) break;
+    if (!c.dl) continue;
+    const L = lab(cx + c.dl);
+    if (seen.has(L) || L.length > MAXLAB) continue;
+    seen.add(L); opts.push({ lab: L, k: c.k });
+  }
+  if (opts.length < 4 || correct.length > MAXLAB || clue.length > 18) return null;
+  let why, hint;
+  const T = to[0] + to[1], F = from[0] + from[1];
+  if (o.sfIn) {
+    const mid = `${num(N, cx)} × 10${sup(PFX[to[0]])} ${to[1]}`;
+    why = `${clue} = ${mid === clue ? '' : mid + ' = '}${correct}, because ${to[0]} means × 10${sup(PFX[to[0]])}.`;
+    hint = `${to[0]} means × 10${sup(PFX[to[0]])}, so 10${sup(PFX[to[0]])} ${to[1]} is 1 ${T}.`;
+  } else if (o.sfOut) {
+    if (!d) why = `${clue} = ${correct}.`;
+    else { const mid = `${num(N, x)} × 10${sup(PFX[from[0]])} ${to[1]}`; why = `${clue} = ${mid}${mid === correct ? '' : ' = ' + correct}.`; }
+    hint = d ? `${from[0]} means × 10${sup(PFX[from[0]])}. Then check the number in front is at least 1 and less than 10.`
+      : 'Hop the point until there is one digit in front of it. Each hop left adds 1 to the power, and each hop right takes 1 away.';
+  } else {
+    why = `${clue} = ${num(N, x)} ${fac(d)} ${T} = ${correct}.`;
+    const big = d < 0;
+    hint = `${T} is a ${big ? 'bigger' : 'smaller'} unit than ${F}, so the number gets ${big ? 'smaller' : 'bigger'}: ${fac(d)}.`;
+  }
+  return {
+    clue, ask: o.sfOut ? `Shoot it in standard form, in ${to[1]}.` : `Shoot it in ${T}.`,
+    opts, hint, why, refs: o.refs || [], krefs: o.krefs || {}, val: [N, cx], sfOut: !!o.sfOut, unit: to
+  };
+}
+
+/* Bronze: one prefix, on or off */
+const BRONZE_U = {
+  kEasy: [['Ω', ['4.7', '2.2', '3.3', '6.8', '1.5', '47', '22']], ['W', ['2.5', '1.5', '3', '12']], ['m', ['3.5', '42', '1.6', '5']], ['Hz', ['2', '50', '1.5']], ['J', ['3.6', '2', '7.5']]],
+  mEasy: [['A', ['250', '40', '350', '500', '20']], ['V', ['330', '50', '750']], ['m', ['25', '600', '3', '15']], ['s', ['200', '450', '50']], ['L', ['500', '250', '750']]],
+  k: [['Ω', ['4.7', '2.2', '3.3', '6.8', '1.5', '47', '22']], ['W', ['2.5', '1.5', '3', '12']], ['V', ['11', '1.5', '33']], ['Hz', ['2.4', '50', '1.2']], ['m', ['3.5', '42', '1.6']]],
+  M: [['Ω', ['1.2', '3.3', '4.7', '2.2']], ['J', ['1.2', '4.5', '2.4']], ['W', ['1.5', '3.2']], ['Hz', ['2.4', '98', '1.8']]],
+  m: [['A', ['250', '40', '350', '15', '500']], ['V', ['330', '50', '750']], ['s', ['20', '450', '5']], ['m', ['25', '600', '3']]],
+  'µ': [['F', ['15', '47', '220', '100']], ['A', ['30', '250', '5']], ['s', ['40', '5', '650']], ['m', ['50', '8', '350']]]
+};
+function bronzeItem([key, dir], lv = 1) {
+  const p = key.replace('Easy', '');
+  const [u, ms] = pick(BRONZE_U[key]); const m = pick(ms);
+  const big = p === 'M' || p === 'µ';
+  const refs = lv === 1 ? [[1, dir === 'p' ? 'puton' : p === 'k' ? 'kilo' : 'milli']]
+    : [[2, dir === 'p' ? (big ? 'puton6' : 'recap') : p === 'M' ? 'mega' : p === 'µ' ? 'six' : 'recap']];
+  const krefs = lv === 1 ? { way: [1, 'rule'], step: [1, 'pair'] } : { way: [2, 'recap'], step: [2, 'four'] };
+  if (dir === 'b') return conv(m, [p, u], ['', u], { refs, krefs });
+  const [N, x] = norm(...parseM(m));
+  return conv([N, x + PFX[p]], ['', u], [p, u], { refs, krefs });
+}
+
+/* Silver: prefix to prefix, and standard form */
+const SX = [
+  [['m', 'A'], ['k', 'A'], ['2500', '40', '750']],
+  [['k', 'V'], ['m', 'V'], ['0.5', '1.2', '0.03']],
+  [['m', 'm'], ['k', 'm'], ['3500', '750000', '42000']],
+  [['k', 'W'], ['M', 'W'], ['330', '4500', '75']],
+  [['M', 'W'], ['G', 'W'], ['850', '1500', '2400']],
+  [['G', 'Hz'], ['M', 'Hz'], ['2.4', '1.8', '5']],
+  [['µ', 'F'], ['n', 'F'], ['0.47', '2.2', '0.01']],
+  [['n', 'F'], ['p', 'F'], ['4.7', '0.33', '22']],
+  [['µ', 's'], ['m', 's'], ['250', '40', '1500']],
+  [['M', 'Ω'], ['k', 'Ω'], ['1.5', '0.22', '4.7']],
+  [['µ', 'm'], ['n', 'm'], ['0.65', '1.5']],
+  [['n', 's'], ['µ', 's'], ['500', '2500']],
+  [['M', 'J'], ['k', 'J'], ['3.6', '0.8']]
+];
+const SX_PRE = [['m', 'A', '3.3'], ['µ', 'F', '6.8'], ['k', 'Ω', '4.7'], ['M', 'W', '2.2'], ['n', 'm', '5.5'], ['G', 'Hz', '2.4'], ['k', 'J', '1.5'], ['m', 's', '2.5']];
+const SX_BIG = [['k', 'Ω', '470'], ['m', 'A', '25'], ['µ', 'F', '220'], ['M', 'J', '15'], ['n', 's', '350'], ['k', 'W', '65']];
+const SX_IN = [['0.0000068', 'F', 'µ'], ['0.0033', 'A', 'm'], ['4700', 'Ω', 'k'], ['2200000', 'W', 'M'], ['0.000000047', 'm', 'n'], ['0.00025', 's', 'µ']];
+const silverKrefs = { sign: [3, 'sf'], way: [3, 'ladder'] };
+function silverItem(kind) {
+  if (kind[0] === 'c') {
+    const want = { c3up: d => d === -3, c3down: d => d === 3, c3: d => Math.abs(d) === 3, c6: d => Math.abs(d) === 6, cany: () => true }[kind];
+    const [from, to, ms] = pick(SX.filter(([a, b]) => want(PFX[a[0]] - PFX[b[0]])));
+    const d = PFX[from[0]] - PFX[to[0]];
+    const refs = [[3, Math.abs(d) === 6 ? 'two' : d > 0 ? 'down' : 'one']];
+    if (/[Gnp]/.test(from[0] + to[0])) refs.push([3, 'ladder']);
+    return conv(pick(ms), from, to, { refs, krefs: silverKrefs });
+  }
+  if (kind === 'sfpre') { const [p, u, m] = pick(SX_PRE); return conv(m, [p, u], ['', u], { sfOut: true, refs: [[3, 'pow']], krefs: silverKrefs }); }
+  if (kind === 'sfbig') { const [p, u, m] = pick(SX_BIG); return conv(m, [p, u], ['', u], { sfOut: true, refs: [[3, 'tidy']], krefs: silverKrefs }); }
+  const [m, u, p] = pick(SX_IN); return conv(m, ['', u], [p, u], { sfIn: true, refs: [[3, 'pow']], krefs: silverKrefs });
+}
+
+/* Gold: compound units, with hand-written decoys for the classic slips */
+const GOLD = {
+  speedA: [
+    ['72 km/h', 'm/s', '20 m/s', [['259.2 m/s', 'x3.6'], ['1.2 m/s', 'only60'], ['72 000 m/s', 'kmonly']], '72 × 1000 ÷ 3600 = 20 m/s (or 72 ÷ 3.6).'],
+    ['90 km/h', 'm/s', '25 m/s', [['324 m/s', 'x3.6'], ['1.5 m/s', 'only60'], ['90 000 m/s', 'kmonly']], '90 × 1000 ÷ 3600 = 25 m/s (or 90 ÷ 3.6).'],
+    ['54 km/h', 'm/s', '15 m/s', [['194.4 m/s', 'x3.6'], ['0.9 m/s', 'only60'], ['54 000 m/s', 'kmonly']], '54 × 1000 ÷ 3600 = 15 m/s (or 54 ÷ 3.6).'],
+    ['36 km/h', 'm/s', '10 m/s', [['129.6 m/s', 'x3.6'], ['0.6 m/s', 'only60'], ['36 000 m/s', 'kmonly']], '36 × 1000 ÷ 3600 = 10 m/s (or 36 ÷ 3.6).']
+  ],
+  speedB: [
+    ['15 m/s', 'km/h', '54 km/h', [['4.17 km/h', '/3.6'], ['900 km/h', 'x60'], ['0.015 km/h', 'monly']], '15 × 3600 ÷ 1000 = 54 km/h (or 15 × 3.6).'],
+    ['30 m/s', 'km/h', '108 km/h', [['8.33 km/h', '/3.6'], ['1800 km/h', 'x60'], ['0.03 km/h', 'monly']], '30 × 3600 ÷ 1000 = 108 km/h (or 30 × 3.6).'],
+    ['25 m/s', 'km/h', '90 km/h', [['6.94 km/h', '/3.6'], ['1500 km/h', 'x60'], ['0.025 km/h', 'monly']], '25 × 3600 ÷ 1000 = 90 km/h (or 25 × 3.6).'],
+    ['10 m/s', 'km/h', '36 km/h', [['2.78 km/h', '/3.6'], ['600 km/h', 'x60'], ['0.01 km/h', 'monly']], '10 × 3600 ÷ 1000 = 36 km/h (or 10 × 3.6).']
+  ],
+  energy: [
+    ['2 kWh', 'J', '7 200 000 J', [['2000 J', 'konly'], ['7200 J', 'nok'], ['120 000 J', 'h60']], '2 × 1000 W × 3600 s = 7 200 000 J (7.2 MJ).'],
+    ['0.5 kWh', 'J', '1 800 000 J', [['500 J', 'konly'], ['1800 J', 'nok'], ['30 000 J', 'h60']], '0.5 × 1000 W × 3600 s = 1 800 000 J (1.8 MJ).'],
+    ['1.5 kWh', 'J', '5 400 000 J', [['1500 J', 'konly'], ['5400 J', 'nok'], ['90 000 J', 'h60']], '1.5 × 1000 W × 3600 s = 5 400 000 J (5.4 MJ).'],
+    ['3 kWh', 'J', '10 800 000 J', [['3000 J', 'konly'], ['10 800 J', 'nok'], ['180 000 J', 'h60']], '3 × 1000 W × 3600 s = 10 800 000 J (10.8 MJ).']
+  ],
+  charge: [
+    ['3000 mAh', 'C', '10 800 C', [['3 C', 'ahonly'], ['180 C', 'h60'], ['10 800 000 C', 'nomilli']], '3000 mAh = 3 A × 3600 s = 10 800 C.'],
+    ['500 mAh', 'C', '1800 C', [['0.5 C', 'ahonly'], ['30 C', 'h60'], ['1 800 000 C', 'nomilli']], '500 mAh = 0.5 A × 3600 s = 1800 C.'],
+    ['2000 mAh', 'C', '7200 C', [['2 C', 'ahonly'], ['120 C', 'h60'], ['7 200 000 C', 'nomilli']], '2000 mAh = 2 A × 3600 s = 7200 C.'],
+    ['1200 mAh', 'C', '4320 C', [['1.2 C', 'ahonly'], ['72 C', 'h60'], ['4 320 000 C', 'nomilli']], '1200 mAh = 1.2 A × 3600 s = 4320 C.']
+  ],
+  area: [
+    ['50 mm²', 'm²', '5 × 10⁻⁵ m²', [['5 × 10⁻² m²', 'lin'], ['5 × 10⁻⁸ m²', 'cubed'], ['5 × 10⁷ m²', 'wayA']], '1 mm² = 10⁻⁶ m², so 50 mm² = 50 × 10⁻⁶ m² = 5 × 10⁻⁵ m².'],
+    ['20 cm²', 'm²', '0.002 m²', [['0.2 m²', 'lin'], ['0.000 02 m²', 'mm2'], ['200 000 m²', 'wayA']], '1 m² = 100 × 100 = 10 000 cm², so 20 ÷ 10 000 = 0.002 m².'],
+    ['1.5 m²', 'cm²', '15 000 cm²', [['150 cm²', 'lin'], ['1 500 000 cm²', 'cubed'], ['0.000 15 cm²', 'wayB']], '1 m² = 100 × 100 = 10 000 cm², so 1.5 × 10 000 = 15 000 cm².'],
+    ['200 mm²', 'cm²', '2 cm²', [['20 cm²', 'lin'], ['0.2 cm²', 'cubed'], ['20 000 cm²', 'wayA']], '1 cm² = 10 × 10 = 100 mm², so 200 ÷ 100 = 2 cm².']
+  ],
+  vol: [
+    ['250 cm³', 'm³', '0.000 25 m³', [['2.5 m³', 'linV'], ['0.025 m³', 'sqV'], ['0.25 m³', 'litre']], '1 m³ = 100³ = 1 000 000 cm³, so 250 ÷ 1 000 000 = 0.000 25 m³.'],
+    ['5 L', 'm³', '0.005 m³', [['5000 m³', 'wayV'], ['0.5 m³', 'L1'], ['0.05 m³', 'L1']], '1 L = 1000 cm³ = 0.001 m³, so 5 L = 0.005 m³.'],
+    ['1500 cm³', 'L', '1.5 L', [['1500 L', 'Lnone'], ['15 L', 'L100'], ['1 500 000 L', 'wayV']], '1 L = 1000 cm³, so 1500 ÷ 1000 = 1.5 L.'],
+    ['0.002 m³', 'L', '2 L', [['0.000 002 L', 'wayL'], ['0.2 L', 'L1000'], ['20 L', 'L1000']], '1 m³ = 1000 L, so 0.002 × 1000 = 2 L.']
+  ],
+  dens: [
+    ['1.2 g/cm³', 'kg/m³', '1200 kg/m³', [['0.0012 kg/m³', 'gonly'], ['0.12 kg/m³', 'cmlin'], ['1.2 kg/m³', 'namesonly']], '1.2 g/cm³ = 1.2 × 10⁻³ kg ÷ 10⁻⁶ m³ = 1200 kg/m³.'],
+    ['7.8 g/cm³', 'kg/m³', '7800 kg/m³', [['0.0078 kg/m³', 'gonly'], ['0.78 kg/m³', 'cmlin'], ['7.8 kg/m³', 'namesonly']], '7.8 g/cm³ = 7.8 × 10⁻³ kg ÷ 10⁻⁶ m³ = 7800 kg/m³.'],
+    ['2.7 g/cm³', 'kg/m³', '2700 kg/m³', [['0.0027 kg/m³', 'gonly'], ['0.27 kg/m³', 'cmlin'], ['2.7 kg/m³', 'namesonly']], '2.7 g/cm³ = 2.7 × 10⁻³ kg ÷ 10⁻⁶ m³ = 2700 kg/m³.']
+  ],
+  stress: [
+    ['250 N/mm²', 'Pa', '250 MPa', [['250 kPa', 'mmlin'], ['250 Pa', 'samePa'], ['250 GPa', 'big']], '1 N/mm² = 1 N ÷ 10⁻⁶ m² = 10⁶ Pa = 1 MPa, so 250 N/mm² = 250 MPa.'],
+    ['40 N/mm²', 'Pa', '40 MPa', [['40 kPa', 'mmlin'], ['40 Pa', 'samePa'], ['40 GPa', 'big']], '1 N/mm² = 1 N ÷ 10⁻⁶ m² = 10⁶ Pa = 1 MPa, so 40 N/mm² = 40 MPa.'],
+    ['2 MPa', 'N/mm²', '2 N/mm²', [['2000 N/mm²', 'mpa'], ['0.002 N/mm²', 'mpa'], ['200 N/mm²', 'mpa']], '1 MPa = 10⁶ N ÷ 10⁶ mm² = 1 N/mm², so 2 MPa = 2 N/mm².']
+  ],
+  rpm: [
+    ['120 rpm', 'rad/s', '12.6 rad/s', [['754 rad/s', 'no60'], ['2 rad/s', 'revs'], ['0.318 rad/s', 'div2pi']], '120 × 2π ÷ 60 = 4π ≈ 12.6 rad/s.'],
+    ['60 rpm', 'rad/s', '6.28 rad/s', [['377 rad/s', 'no60'], ['1 rad/s', 'revs'], ['0.159 rad/s', 'div2pi']], '60 × 2π ÷ 60 = 2π ≈ 6.28 rad/s.'],
+    ['3000 rpm', 'rad/s', '314 rad/s', [['18 800 rad/s', 'no60'], ['50 rad/s', 'revs'], ['7.96 rad/s', 'div2pi']], '3000 × 2π ÷ 60 = 100π ≈ 314 rad/s.'],
+    ['1500 rpm', 'rad/s', '157 rad/s', [['9420 rad/s', 'no60'], ['25 rad/s', 'revs'], ['3.98 rad/s', 'div2pi']], '1500 × 2π ÷ 60 = 50π ≈ 157 rad/s.']
+  ]
+};
+const GPRE = {
+  'x3.6': 'That multiplied by 3.6. Going to m/s, divide. ',
+  only60: 'That only divided by 60. An hour is 3600 s, and a km is 1000 m. ',
+  kmonly: 'That changed km to m but forgot the hours. ',
+  '/3.6': 'That divided by 3.6. Going to km/h, multiply. ',
+  x60: 'That multiplied by 60. An hour is 3600 s, and a km is 1000 m. ',
+  monly: 'That changed m to km but forgot the seconds. ',
+  konly: 'That only dealt with the kilo. The hours need changing to seconds too. ',
+  nok: 'That changed hours to seconds but forgot the kilo. ',
+  h60: 'That used 60 s for an hour. An hour is 3600 s. ',
+  ahonly: 'That changed mAh to Ah, but the hours still need to become seconds. ',
+  nomilli: 'That forgot the milli: the current is in mA, not A. ',
+  lin: 'That used the length factor. For area, square it. ',
+  cubed: 'That cubed the factor. Area only squares it. ',
+  mm2: 'That divided by 1 000 000, which is the factor for mm², not cm². ',
+  wayA: 'Wrong way: the new unit is bigger, so the number gets smaller. ',
+  wayB: 'Wrong way: the new unit is smaller, so the number gets bigger. ',
+  linV: 'That used the length factor. For volume, cube it. ',
+  sqV: 'That squared the factor. Volume cubes it. ',
+  litre: 'That divided by 1000, which would give litres, not m³. ',
+  wayV: 'Wrong way: the new unit is bigger, so the number gets smaller. ',
+  L1: 'A litre is 0.001 m³, so divide by 1000. ',
+  Lnone: 'That is the same number with a new unit. 1 L is 1000 cm³. ',
+  L100: '1 L is 1000 cm³, not 100 cm³. ',
+  wayL: 'Wrong way: a litre is smaller than a m³, so the number gets bigger. ',
+  L1000: '1 m³ is 1000 L, so multiply by 1000. ',
+  gonly: 'That changed g to kg but not cm³ to m³. ',
+  cmlin: 'That treated cm³ like cm. The volume factor is 10⁶, not 100. ',
+  namesonly: 'That only changed the unit names. Convert the g and the cm³. ',
+  mmlin: 'That treated mm² like mm. The area factor is 10⁶, not 1000. ',
+  samePa: 'N/mm² and Pa are not the same: 1 Pa is 1 N/m². ',
+  big: 'That is 1000 times too big. 1 N/mm² is 10⁶ Pa, which is 1 MPa. ',
+  mpa: '1 MPa is exactly 1 N/mm², so the number stays the same. ',
+  no60: 'That multiplied by 2π but forgot to divide by 60. ',
+  revs: 'That is rev/s. Now multiply by 2π for rad/s. ',
+  div2pi: 'That divided by 2π. Each revolution is 2π rad, so multiply. '
+};
+const GHINT = {
+  speedA: '1 km = 1000 m and 1 h = 3600 s, so divide km/h by 3.6.',
+  speedB: 'Multiply by 3600 to get m/h, then divide by 1000 to get km/h. Or just × 3.6.',
+  energy: '1 kWh = 1000 W × 3600 s = 3 600 000 J.',
+  charge: 'Charge = current × time. Change mA to A, and hours to seconds (× 3600).',
+  area: 'Square the length factor: 1 m² = 10 000 cm², 1 cm² = 100 mm² and 1 m² = 1 000 000 mm².',
+  vol: 'Cube the length factor: 1 m³ = 1 000 000 cm³. And 1 L = 1000 cm³.',
+  dens: 'Convert the top and bottom separately: g to kg is ÷ 1000, and per cm³ to per m³ is × 1 000 000.',
+  stress: '1 N/mm² = 1 N ÷ 10⁻⁶ m² = 10⁶ Pa = 1 MPa.',
+  rpm: 'Divide by 60 to get rev/s, then multiply by 2π to get rad/s.'
+};
+const GREF = { speedA: 'kmh', speedB: 'ms', energy: 'kwh', charge: 'mah', area: 'area', vol: 'vol', dens: 'dens', stress: 'dens', rpm: 'rpm' };
+const nb = s => s.replace(/(\d) (?=\d)/g, '$1' + NB);
+function goldItem(cat) {
+  const [clue, u, ok, ds, why] = pick(GOLD[cat]);
+  return {
+    clue: nb(clue), ask: `Shoot it in ${u}${cat === 'rpm' ? ' (3 s.f.)' : ''}.`,
+    opts: [{ lab: nb(ok), k: 'ok' }].concat(ds.map(([l, p]) => ({ lab: nb(l), pre: GPRE[p] }))),
+    hint: GHINT[cat], why: nb(why), refs: [[4, GREF[cat]]], krefs: {}, cat
+  };
+}
+
+/* the fixed mix of question types for each level, so scores are fair */
+const MIXES = {
+  1: () => [['kEasy', 'b'], ['kEasy', 'b'], ['kEasy', 'b'], ['mEasy', 'b'], ['mEasy', 'b'], ['mEasy', 'b'], ['kEasy', 'p'], ['kEasy', 'p'], ['mEasy', 'p'], ['mEasy', 'p']].map(s => () => bronzeItem(s, 1)),
+  2: () => [['M', 'b'], ['M', 'b'], ['µ', 'b'], ['µ', 'b'], ['M', 'p'], ['µ', 'p'], ['k', 'b'], ['m', 'b'], ['k', 'p'], ['m', 'p']].map(s => () => bronzeItem(s, 2)),
+  3: () => ['c3up', 'c3down', 'c3', 'c6', 'c6', 'cany', 'sfpre', 'sfpre', 'sfbig', 'sfin'].map(s => () => silverItem(s)),
+  4: () => ['speedA', 'speedB', 'energy', 'charge', 'area', 'vol', 'dens', 'stress', 'rpm', pick(['speedA', 'energy', 'area'])].map(s => () => goldItem(s))
+};
+function finish(it) {
+  const o = shuffle(it.opts.slice());
+  return Object.assign(it, {
+    labs: o.map(x => x.lab),
+    correct: o.findIndex(x => x.k === 'ok'),
+    pres: o.map(x => x.pre || PRE[x.k] || ''),
+    orefs: o.map(x => (it.krefs[x.k] ? [it.krefs[x.k]] : []))
+  });
+}
+function buildPlan(lv) {
+  const used = new Set();
+  return shuffle(MIXES[lv]()).map(make => {
+    let it = null;
+    for (let n = 0; n < 60; n++) { const c = make(); if (c && !used.has(c.clue)) { it = c; break; } }
+    used.add(it.clue);
+    return finish(it);
+  });
+}
+/*GEN-END*/
+
+/* ---------- levels ---------- */
+const QN = 10; // questions per batch: the fixed mix repeats every 10 waves, and play goes on until the lives run out
+const SPEEDUP = 5, SPEEDUP_BY = 1.5; // every 5 right answers, the asteroids come in 50% faster
+const LEVEL = {
+  1: { next: 'Silver level', lim: 22, drift: .22, approach: 19,
+       ready: ['Bronze', 'Kilo and milli', 'Each wave, four asteroids fly in from the corners, heading for Vex. Shoot the one that matches the value in the panel before it reaches him.', 'Arrow keys fly and Space fires. Or tap an asteroid, or press A–D, and Vex locks on. You lose a life if an asteroid hits the ship, or if you get a wave wrong twice. There’s no last wave: play goes on until all three lives are lost, and every 5 right answers the asteroids come in 50% faster.'] },
+  2: { next: 'Gold level', lim: 22, drift: .25, approach: 18,
+       ready: ['Silver', 'Mega and micro', 'Six hops now: mega and micro, mixed with some kilo and milli to keep you sharp.', 'Mind the case: capital M is mega, small m is milli.'] },
+  3: { next: 'Diamond level', lim: 22, drift: .3, approach: 18,
+       ready: ['Gold', 'Prefix to prefix', 'Jump between two prefixes, and write values in standard form.', 'Giga, nano and pico join the ladder. Count your hops.'] },
+  4: { next: null, lim: 30, drift: .32, approach: 24,
+       ready: ['Diamond', 'Compound units', 'km/h to m/s, kWh to J, mm² to m², rpm to rad/s and more.', 'Convert each part of the unit separately. Squared and cubed units need squared and cubed factors.'] }
+};
+const MEDAL = { 1: ['Bronze', '#b87333'], 2: ['Silver', '#a3a8ae'], 3: ['Gold', '#d9a514'], 4: ['Diamond', '#4fc3e8'] };
+const LEVELS = [1, 2, 3, 4];
+
+/* ---------- lessons (Learn mode) ---------- */
+const S_ = (id, t, x, say, vis) => ({ id, t, x, say, vis });
+const ALL = ['G', 'M', 'k', '', 'm', 'µ', 'n', 'p'];
+const LEARN = {
+  1: [
+    S_('play', 'Prefix Panic', 'Prefixes are shorthand for powers of ten: 4.7 kΩ is a tidy way to write 4700 Ω. Each wave, a value appears in the panel and four asteroids fly in from the corners, heading for Vex. Shoot the one that shows the same value in the unit you are asked for. Fly with the arrow keys and fire with Space, or tap an asteroid (or press A–D) and Vex locks on. You lose a life if an asteroid hits the ship, or if you get a wave wrong twice. Lose all three and the game is over, but your score still counts.', 'Rawr! Ready?', { type: 'ship', labs: ['470 Ω', '4700 Ω', '0.0047 Ω', '47' + NB + '000 Ω'], ok: 1, top: '4.7 kΩ in Ω' }),
+    S_('pair', 'Kilo and milli', 'kilo (k) means × 1000, so 1 km is 1000 m. milli (m) means ÷ 1000, so 1 mA is a thousandth of an amp. Those are the only two prefixes in Bronze.', 'Kilo and milli!', { type: 'ladder', rungs: ['k', '', 'm'], hl: ['k', 'm'] }),
+    S_('kilo', 'Taking off a k', 'To remove a prefix, swap it for the number it stands for. 4.7 kΩ = 4.7 × 1000 Ω = 4700 Ω. Multiplying by 1000 hops the decimal point 3 places to the right.', 'Three hops right!', { type: 'hop', num: '4.7', shift: 3, top: '4.7 kΩ in Ω', note: '× 1000', end: '4.7 kΩ = 4700 Ω' }),
+    S_('rule', 'Smaller unit, bigger number', 'One ohm is much smaller than one kilohm, so you need more of them. Going to a smaller unit, the number gets bigger. Going to a bigger unit, the number gets smaller.', 'Smaller unit, bigger number!', { type: 'ladder', rungs: ['k', '', 'm'], from: 'k', to: '' }),
+    S_('milli', 'Taking off an m', 'milli means ÷ 1000. 250 mA = 250 ÷ 1000 A = 0.25 A. The amp is the bigger unit, so the number gets smaller: the point hops 3 places to the left.', 'Three hops left!', { type: 'hop', num: '250', shift: -3, top: '250 mA in A', note: '÷ 1000', end: '250 mA = 0.25 A' }),
+    S_('puton', 'Putting a prefix on', 'To write a value with a prefix, think about the size of the unit. 0.047 A in mA: a milliamp is smaller, so the number gets bigger. × 1000 gives 47 mA. 6800 Ω in kΩ: a kilohm is bigger, so ÷ 1000 gives 6.8 kΩ.', 'Reverse thrusters!', { type: 'hop', num: '0.047', shift: 3, top: '0.047 A in mA', note: '× 1000', end: '0.047 A = 47 mA' }),
+    S_('check', 'Check before you fire', 'Before you shoot, ask: is the new unit bigger or smaller? Then check the number moved the right way, by 3 hops. Decoys go the wrong way, or hop too far, or not far enough.', 'Check, then fire!', { type: 'ship', labs: ['0.25 A', '250' + NB + '000 A', '2.5 A', '0.025 A'], ok: 0, top: '250 mA in A' })
+  ],
+  2: [
+    S_('recap', 'Quick recap', 'kilo (k) is × 1000 and milli (m) is ÷ 1000. Going to a smaller unit, the number gets bigger. Going to a bigger unit, the number gets smaller. Silver mixes these in with two new prefixes.', 'Remember these?', { type: 'ladder', rungs: ['k', '', 'm'], from: 'k', to: 'm' }),
+    S_('four', 'Mega and micro', 'mega (M) means × 1 000 000 and micro (µ) means ÷ 1 000 000. They are 1000 times further out than kilo and milli. Watch the case: capital M is mega, but small m is milli.', 'Mind your Ms!', { type: 'ladder', rungs: ['M', 'k', '', 'm', 'µ'], hl: ['M', 'µ'] }),
+    S_('mega', 'Taking off an M', 'Mega means × 1 000 000, so the point hops 6 places to the right. 3.3 MΩ = 3 300 000 Ω. Fill the gaps with zeros as the point hops.', 'Six hops right!', { type: 'hop', num: '3.3', shift: 6, top: '3.3 MΩ in Ω', note: '× 1' + NB + '000' + NB + '000', end: '3.3 MΩ = 3' + NB + '300' + NB + '000 Ω' }),
+    S_('six', 'Taking off a µ', 'Micro means ÷ 1 000 000, so the point hops 6 places to the left. 15 µF = 0.000 015 F. Lots of zeros after the point means a very small number.', 'Six hops left!', { type: 'hop', num: '15', shift: -6, top: '15 µF in F', note: '÷ 1' + NB + '000' + NB + '000', end: '15 µF = 0.000' + NB + '015 F' }),
+    S_('puton6', 'Putting on M and µ', 'Going the other way, think about unit size again. 0.000 22 F in µF: a microfarad is much smaller, so × 1 000 000 gives 220 µF. 2 200 000 Ω in MΩ: a megohm is much bigger, so ÷ 1 000 000 gives 2.2 MΩ.', 'Reverse thrusters!', { type: 'hop', num: '0.00022', shift: 6, top: '0.000' + NB + '22 F in µF', note: '× 1' + NB + '000' + NB + '000', end: '0.000' + NB + '22 F = 220 µF' }),
+    S_('scheck', 'Three hops or six?', 'kilo and milli are 3 hops. Mega and micro are 6 hops. A common decoy uses 3 hops when it should be 6, so count carefully before you fire.', 'Count the hops!', { type: 'ship', labs: ['3' + NB + '300' + NB + '000 Ω', '3300 Ω', '0.000' + NB + '003' + NB + '3 Ω', '330' + NB + '000 Ω'], ok: 0, top: '3.3 MΩ in Ω' })
+  ],
+  3: [
+    S_('ladder', 'The prefix ladder', 'Three more prefixes: giga (G) is × 10⁹, nano (n) is × 10⁻⁹ and pico (p) is × 10⁻¹². Every step on the ladder is a factor of 1000. Step down to a smaller unit and the number gets 1000 times bigger.', 'Each step is × 1000', { type: 'ladder', rungs: ALL, pow: true, hl: ['G', 'n', 'p'] }),
+    S_('two', 'Two steps at once', 'mA to kA is two steps up the ladder, so the number gets smaller twice: ÷ 1000 ÷ 1000 = ÷ 1 000 000. 2500 mA = 0.0025 kA. That is six hops to the left.', 'Two steps, six hops!', { type: 'ladder', rungs: ['M', 'k', '', 'm', 'µ'], from: 'm', to: 'k', pow: true }),
+    S_('one', 'One step up', 'kW to MW is one step up the ladder, so ÷ 1000. 330 kW = 0.33 MW. In the same way, 1500 MW = 1.5 GW.', 'Up one step!', { type: 'hop', num: '330', shift: -3, top: '330 kW in MW', note: '÷ 1000', end: '330 kW = 0.33 MW' }),
+    S_('down', 'Stepping down', 'Going down the ladder, the number gets bigger. 0.47 µF in nF is one step down, so × 1000 gives 470 nF. In the same way, 2.4 GHz = 2400 MHz.', 'Down one step!', { type: 'hop', num: '0.47', shift: 3, top: '0.47 µF in nF', note: '× 1000', end: '0.47 µF = 470 nF' }),
+    S_('sf', 'Standard form', 'Standard form writes a number as A × 10ⁿ, where A is at least 1 and less than 10. 4700 = 4.7 × 10³: the point hops 3 places left, so the power is 3. Small numbers have negative powers: 0.0033 = 3.3 × 10⁻³.', 'Hop and count!', { type: 'hop', num: '4700', shift: -3, sf: true, base: 0, top: '4700 in standard form', end: '4700 = 4.7 × 10³' }),
+    S_('pow', 'Prefixes are powers', 'Each prefix is a power of ten, so you can swap it straight in. 3.3 mA = 3.3 × 10⁻³ A. 6.8 µF = 6.8 × 10⁻⁶ F. 2.2 GW = 2.2 × 10⁹ W. And back again: 4.7 × 10⁻⁹ m = 4.7 nm.', 'Swap it straight in!', { type: 'ladder', rungs: ALL, pow: true, hl: ['G', 'm', 'µ', 'n'] }),
+    S_('tidy', 'Tidying up', '470 kΩ = 470 × 10³ Ω, but 470 is not between 1 and 10. Hop the point 2 places left and add 2 to the power: 4.7 × 10⁵ Ω. Each hop left adds 1 to the power.', 'Tidy it up!', { type: 'hop', num: '470', shift: -2, sf: true, base: 3, top: '470 × 10³ Ω in standard form', end: '470 kΩ = 4.7 × 10⁵ Ω' }),
+    S_('scheck', 'Count the hops', 'Every hop of the point is a factor of 10, and every step on the ladder is 3 hops. Count the hops and check the direction before you fire.', 'Count, check, fire!', { type: 'ship', labs: ['0.0025 kA', '2.5 kA', '0.000' + NB + '002' + NB + '5 kA', '0.025 kA'], ok: 0, top: '2500 mA in kA' })
+  ],
+  4: [
+    S_('compound', 'Compound units', 'Units like m/s, kWh and kg/m³ are built from other units. Convert each part on its own, then combine them. Writing every step out is the safest way.', 'One part at a time', { type: 'chain', list: true, lines: ['m/s   = m ÷ s', 'kWh   = kW × h', 'kg/m³ = kg ÷ m³', 'N/mm² = N ÷ mm²'] }),
+    S_('kmh', 'km/h to m/s', '1 km = 1000 m and 1 h = 3600 s. 72 km/h = 72 × 1000 m ÷ 3600 s = 20 m/s. Shortcut: divide km/h by 3.6.', 'Divide by 3.6!', { type: 'chain', lines: ['72 km/h', '= 72 × 1000 m ÷ 3600 s', '= 72' + NB + '000 m ÷ 3600 s', '= 20 m/s'] }),
+    S_('ms', 'm/s to km/h', 'Going back, multiply by 3.6. 15 m/s = 15 × 3.6 = 54 km/h. Sense check: 30 m/s is 108 km/h, which is about motorway speed.', 'Times 3.6!', { type: 'chain', lines: ['15 m/s', '= 15 × 3600 m/h', '= 54' + NB + '000 m/h', '= 54 km/h'] }),
+    S_('kwh', 'Kilowatt-hours', 'A kilowatt-hour is the energy transferred by 1000 W in 3600 s. 1 kWh = 1000 × 3600 J = 3 600 000 J = 3.6 MJ. So 2 kWh = 7.2 MJ.', 'Watt a lot of joules!', { type: 'chain', lines: ['1 kWh', '= 1000 W × 3600 s', '= 3' + NB + '600' + NB + '000 J', '= 3.6 MJ'] }),
+    S_('mah', 'Milliamp-hours', 'Battery capacity in mAh is a charge: current × time. 1 mAh = 0.001 A × 3600 s = 3.6 C. So 3000 mAh = 3 A × 3600 s = 10 800 C.', 'Fully charged!', { type: 'chain', lines: ['3000 mAh', '= 3 A × 1 h', '= 3 A × 3600 s', '= 10' + NB + '800 C'] }),
+    S_('area', 'Squared units', '1 cm = 10 mm, but a 1 cm square holds 10 × 10 = 100 mm². Square the factor! 1 m² = 100² = 10 000 cm², and 1 mm² = 10⁻⁶ m². So 50 mm² = 5 × 10⁻⁵ m².', 'Square the factor!', { type: 'grid' }),
+    S_('vol', 'Cubed units', 'For volume, cube the factor. 1 m³ = 100³ = 1 000 000 cm³, so 250 cm³ = 0.000 25 m³. A litre is 1000 cm³ (a 10 cm cube), so 1 L = 0.001 m³.', 'Cube the factor!', { type: 'cube' }),
+    S_('dens', 'Top and bottom', 'Convert the top and bottom separately. 1 g/cm³ = 10⁻³ kg ÷ 10⁻⁶ m³ = 1000 kg/m³. In engineering, 1 N/mm² = 1 N ÷ 10⁻⁶ m² = 10⁶ Pa = 1 MPa.', 'Top, then bottom!', { type: 'chain', lines: ['1 g/cm³', '= 10⁻³ kg ÷ 10⁻⁶ m³', '= 10³ kg/m³', '= 1000 kg/m³'] }),
+    S_('rpm', 'Revs per minute', 'One revolution is 2π radians, and one minute is 60 s. 120 rpm = 120 × 2π ÷ 60 = 4π ≈ 12.6 rad/s. A quick route: rpm ÷ 60 gives rev/s, then × 2π.', 'Round and round!', { type: 'wheel' })
+  ]
+};
+const LIDX = {};
+for (const lv of LEVELS) { LIDX[lv] = {}; LEARN[lv].forEach((s, i) => { LIDX[lv][s.id] = i; }); }
+const refIdx = ([lv, id]) => [lv, LIDX[lv][id]];
+
+/* ---------- Dinosaurus Vex (with his specs and bow tie) ---------- */
+const DINO_TOP = [
+  '...........########.',
+  '..........##########',
+  '..........#gggg#####',
+  '..........ggw#g#####',
+  '..........#gggg#####',
+  '..........##########',
+  '..........#####.....',
+  '..........########..',
+  '#........#####tt....',
+  '#......#######t.....',
+  '##....##########....',
+  '###..#########.#....',
+  '###############.....',
+  '.#############......',
+  '..###########.......',
+  '...#########........'
+];
+const LEGS = [
+  ['....###.###.........', '....##...##.........', '....#.....#.........'],
+  ['....###..##.........', '....##....#.........', '....#.....##........'],
+  ['....##..###.........', '....#....##.........', '....##...#..........']
+];
+function drawDino(x, y, face, frame, dy = 0) {
+  const g = DINO_TOP.concat(LEGS[frame]);
+  const map = { '#': C.ink, g: '#2f8fd1', w: C.sail, t: '#e8508a' };
+  ctx.save();
+  ctx.translate(Math.round(x), Math.round(y - dy));
+  const y0 = -g.length * P;
+  for (let r = 0; r < g.length; r++) for (let k = 0; k < 20; k++) {
+    const ch = g[r][k]; if (!(ch in map)) continue;
+    ctx.fillStyle = map[ch];
+    const kk = face < 0 ? 19 - k : k;
+    ctx.fillRect((kk - 10) * P, y0 + r * P, P, P);
+  }
+  ctx.restore();
+}
+
+/* ---------- Vex's antics: the longer the streak, the bigger the show ---------- */
+const QUIPS = ['Vex-cellent!', 'Rawr-some!', 'Dino-mite!', 'Prefix-perfect!', 'Kilo-tastic!', 'Mega!', 'Bang on!', 'Spot on!', 'Astro-nomical!', 'Rock solid!'];
+const ANTIC = {
+  strut:     { n: 80,  say: () => Math.random() < .7 ? pick(QUIPS) : '' },
+  twin:      { n: 85,  say: () => 'Twin cannons!' },
+  zoom:      { n: 75,  say: () => pick(['Zoom!', 'Speedy-saurus!', 'Nyoom!']) },
+  roll:      { n: 80,  say: () => 'Hat-trick!' },
+  loop:      { n: 100, say: () => 'Rainbow trail!' },
+  spin:      { n: 90,  say: () => pick(['On fire!', 'Spin cycle!', 'Five in a row!']) },
+  lap:       { n: 130, say: () => 'Shields up!' },
+  fireworks: { n: 130, say: () => pick(['Kaboom!', 'Fireworks!', 'Seven! Ka-pow!']) },
+  disco:     { n: 180, say: () => pick(['Disco time!', 'Space disco!', 'Groove-a-saurus!']) },
+  ufo:       { n: 200, say: () => 'Take me to your teacher!' },
+  nova:      { n: 160, say: () => pick(['Supernova!', 'Mega-nova!', 'Unstoppa-saurus!']) },
+  warp:      { n: 170, say: () => pick(['Hyperspace!', 'Warp speed!', 'Light speed!']) },
+  crown:     { n: 560, say: () => 'Ten out of ten!' },
+  phew:      { n: 80,  say: () => pick(['Phew!', 'Got there!', 'Close one!']) },
+  plod:      { n: 80,  say: () => pick(['Oops...', 'Next time!', 'Hmm...']) }
+};
+// the top celebrations differ by level
+const SCHED = {
+  1: { 8: 'disco', 9: 'ufo', 10: 'nova' },
+  2: { 8: 'ufo', 9: 'nova', 10: 'warp' },
+  3: { 8: 'nova', 9: 'warp', 10: 'crown' },
+  4: { 8: 'nova', 9: 'warp', 10: 'crown' }
+};
+const MEDLEY = ['roll', 'loop', 'spin', 'fireworks', 'disco', 'ufo', 'nova', 'warp'];
+const MEDLEY_SAY = { roll: 'Barrel roll!', loop: 'Loop the loop!', spin: 'Spin!', fireworks: 'Fireworks!', disco: 'Disco!', ufo: 'Beam me up!', nova: 'Supernova!', warp: 'All hail King Vex!' };
+function chooseAntic() {
+  if (q.result === 'miss') return 'plod';
+  if (q.result === 'ok2') return 'phew';
+  const s = (game.streak - 1) % 10 + 1; // streak 11 starts the shows again from the top
+  if (SCHED[game.lv][s]) return SCHED[game.lv][s];
+  if (s >= 8) return 'nova';
+  if (s === 7) return 'fireworks';
+  if (s === 6) return 'lap';
+  if (s === 5) return 'spin';
+  if (s === 4) return 'loop';
+  if (s === 3) return 'roll';
+  if (s === 2) return 'twin';
+  if ((q.spd || 0) >= 38) return 'zoom';
+  return 'strut';
+}
+function curA() {
+  if (!cel) return null;
+  const f = cel.T / cel.N;
+  if (cel.A !== 'crown') return { A: cel.A, f };
+  if (f < .1) return { A: 'crowning', f: f / .1, seg: -1 };
+  const x = (f - .1) / .9 * MEDLEY.length, i = Math.min(MEDLEY.length - 1, Math.floor(x));
+  return { A: MEDLEY[i], f: Math.min(1, x - i), seg: i };
+}
+
+/* ---------- state ---------- */
+const game = { state: 'ready', lv: 1, step: 0, tStart: 0, elapsed: 0, endAt: 0, raw: 0, score: 0, streak: 0, bestStreak: 0, first: 0, second: 0, missed: 0, accPts: 0, spdPts: 0, strPts: 0, rev: [], crown: false, lives: 3, reached: 0, right: 0, speed: 1 };
+let plan = [], q = null, phase = 'idle', t = 0, msgPrimary = null, hoverI = -1, enterT = 0;
+const FB_T = 240;
+let lvlUp = null; // the Level Up banner after each speed-up
+let fbT = 0, deadT = 0, cel = null, mishap = null, mishapN = rnd(3), bubble = null, flashA = 0;
+const say = (text, life = 90) => { if (text) bubble = { text, life }; };
+
+/* ---------- scores: kept in the browser, and inside the file when saved ---------- */
+let saved = null; // the last .sav file loaded
+const SALT = 'prefix-panic/rawr/v1';
+// check code for a .sav file: two hashes of everything above the Check line, so any edit stops it loading
+const fnv = (s, h) => { for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+const sig = text => fnv(SALT + text, 2166136261).toString(36) + fnv(text + SALT, 3735928559).toString(36);
+const normSav = s => s.replace(/\r/g, '').split('\n').map(l => l.trimEnd()).join('\n').replace(/\n+$/, '');
+let playerName = '';
+const slug = n => String(n).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'player';
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const skey = k => 'prefixpanic2-' + (playerName ? slug(playerName) + '-' : '') + k;
+const high = {}, bestRec = {}, played = { 1: 0, 2: 0, 3: 0, 4: 0 };
+let learned = {}, review = {};
+function loadScores() {
+  for (const id of LEVELS) {
+    delete bestRec[id]; high[id] = 0; played[id] = 0;
+    try {
+      const r = JSON.parse(localStorage.getItem(skey('best-' + id)));
+      if (r && r.score > 0) bestRec[id] = r;
+      played[id] = parseInt(localStorage.getItem(skey('played-' + id)), 10) || 0;
+    } catch (e) {}
+    const sb = saved && saved.best && saved.best[id];
+    if (sb && sb.score > 0 && (!bestRec[id] || sb.score > bestRec[id].score)) bestRec[id] = sb;
+    if (saved && saved.played && saved.played[id] > played[id]) played[id] = saved.played[id];
+    high[id] = bestRec[id] ? bestRec[id].score : 0;
+  }
+}
+function loadProgress() {
+  learned = {}; review = {};
+  try { learned = JSON.parse(localStorage.getItem(skey('learned'))) || {}; } catch (e) {}
+  try { review = JSON.parse(localStorage.getItem(skey('review'))) || {}; } catch (e) {}
+  if (saved && saved.learned) for (const k in saved.learned) if (saved.learned[k]) learned[k] = true;
+  if (saved && saved.review && !Object.keys(review).length) review = saved.review;
+}
+function saveProgress() {
+  try { localStorage.setItem(skey('learned'), JSON.stringify(learned)); localStorage.setItem(skey('review'), JSON.stringify(review)); } catch (e) {}
+}
+function markLearned(n) { if (!learned[n]) { learned[n] = true; saveProgress(); } }
+function storeScores() {
+  for (const id of LEVELS) {
+    try {
+      if (bestRec[id]) localStorage.setItem(skey('best-' + id), JSON.stringify(bestRec[id]));
+      localStorage.setItem(skey('played-' + id), String(played[id]));
+    } catch (e) {}
+  }
+}
+/* ---------- leaderboard codename and auto-submit ---------- */
+// Codenames are built only from these lists (no free text). The Apps Script has the same lists and rejects anything else.
+const CN_ADJ = ['Turbo', 'Rapid', 'Mighty', 'Cosmic', 'Atomic', 'Stellar', 'Hyper', 'Sonic', 'Quantum', 'Fearless', 'Swift', 'Brave', 'Clever', 'Lucky', 'Plucky', 'Nimble', 'Jolly', 'Daring', 'Zippy', 'Bold', 'Super', 'Speedy', 'Dazzling', 'Galactic'];
+const CN_PRE = ['Kilo', 'Mega', 'Giga', 'Tera', 'Milli', 'Micro', 'Nano', 'Pico'];
+const CN_DINO = ['Raptor', 'Rex', 'Dino', 'Stego', 'Bronto', 'Ptero', 'Comet', 'Rocket'];
+const CN_KEY = 'prefixpanic2-codename';
+const newCodename = () => `${pick(CN_ADJ)} ${pick(CN_PRE)}-${pick(CN_DINO)} ${10 + Math.floor(Math.random() * 90)}`;
+const CN_RE = new RegExp(`^(${CN_ADJ.join('|')}) (${CN_PRE.join('|')})-(${CN_DINO.join('|')}) [1-9][0-9]$`);
+let cn = null; // { name, rerolls left, locked once a score has been sent }
+function loadCodename() {
+  try { cn = JSON.parse(localStorage.getItem(CN_KEY)); } catch (e) { cn = null; }
+  if (!cn || !CN_RE.test(cn.name)) cn = { name: newCodename(), rerolls: 2, locked: false };
+  storeCodename();
+}
+function storeCodename() { try { localStorage.setItem(CN_KEY, JSON.stringify(cn)); } catch (e) {} }
+function rerollCodename() {
+  if (cn.locked || cn.rerolls <= 0) return;
+  let n; do n = newCodename(); while (n === cn.name);
+  cn.name = n; cn.rerolls--;
+  storeCodename();
+  if (game.state === 'intro') showIntro(); else goLevel(game.lv);
+}
+const canReroll = () => !cn.locked && cn.rerolls > 0;
+function codenameLine() {
+  return `<p class="cn"><span>Codename</span><b>${esc(cn.name)}</b>` +
+    (canReroll() ? `<button class="btn ghost mini" data-act="reroll">New one (${cn.rerolls} left)</button>` : '') + '</p>';
+}
+// the first screen when the game opens: the student's leaderboard codename, big
+function showIntro() {
+  game.state = 'intro';
+  reset();
+  setMsg(`<p class="big">Your leaderboard codename</p>
+    <p class="cnbig">${esc(cn.name)}</p>
+    <p class="small">Your scores go on the leaderboard under this name.</p>
+    <div class="acts"><button class="btn" data-act="go">Play</button>${canReroll() ? `<button class="btn ghost" data-act="reroll">New codename (${cn.rerolls} left)</button>` : ''}<button class="btn ghost" data-act="load">Load my scores</button></div>${savedNote}`, 'go');
+  savedNote = '';
+}
+let lbState = ''; // the small note on the game-over screen
+function lbNote(s) { lbState = s; const el = $('lbNote'); if (el) el.textContent = s; }
+function sendScore() {
+  const body = JSON.stringify({ game: 'prefix-panic', codename: cn.name, tier: game.lv, score: game.score });
+  if (!LEADERBOARD_URL || typeof fetch !== 'function') { lbNote('Leaderboard offline.'); return; }
+  lbNote('Sending to the leaderboard…');
+  let ctl = null, tm = 0;
+  try { ctl = new AbortController(); tm = setTimeout(() => ctl.abort(), 10000); } catch (e) {}
+  // text/plain keeps this a simple request, so there's no CORS preflight for Apps Script to fail
+  fetch(LEADERBOARD_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body, signal: ctl ? ctl.signal : undefined })
+    .then(r => r.json())
+    .then(d => {
+      if (d && d.ok) {
+        if (!cn.locked) { cn.locked = true; storeCodename(); }
+        lbNote('Sent to the leaderboard ✓');
+      } else lbNote('Leaderboard offline.');
+    })
+    .catch(() => lbNote('Leaderboard offline.'))
+    .finally(() => clearTimeout(tm));
+}
+loadCodename();
+function showWho() { const w = $('who'); w.hidden = !playerName; w.textContent = playerName; }
+loadScores();
+loadProgress();
+const reviewCount = n => (review[n] || []).length;
+const showHigh = () => { $('best').textContent = 'High ' + (high[game.lv] || 0); };
+function bestTable(newLv = 0) {
+  let total = 0;
+  const rows = LEVELS.map(id => {
+    const r = bestRec[id];
+    if (r) total += r.score;
+    const cur = id === game.lv ? ' class="cur"' : '';
+    return `<tr${cur}><th><i style="background:${MEDAL[id][1]}"></i>${MEDAL[id][0]}${id === newLv ? ' <em>new!</em>' : ''}</th>` +
+      (r ? `<td>${r.score}</td><td>${r.first}/${r.steps}</td><td>${fmtT(r.time)}</td><td>${r.date}</td>` : '<td>–</td><td>–</td><td>–</td><td>–</td>') + '</tr>';
+  }).join('');
+  const games = LEVELS.reduce((s, id) => s + played[id], 0);
+  const cap = (playerName ? esc(playerName) + '’s best scores' : 'Your best scores') + (games ? ` (${games} game${games === 1 ? '' : 's'})` : '');
+  return `<table class="hs"><caption>${cap}</caption><thead><tr><th></th><th>Score</th><th>1st go</th><th>Time</th><th>Date</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><th>Total</th><td>${total}</td><td colspan="3"></td></tr></tfoot></table>`;
+}
+function updHud() {
+  // the bar fills towards the next speed-up
+  $('count').textContent = Math.round(game.speed * 100) + '%';
+  $('barFill').style.width = (game.right % SPEEDUP / SPEEDUP * 100) + '%';
+  $('score').textContent = game.score;
+  $('streak').textContent = game.streak >= 2 ? '×' + game.streak : '';
+  $('lives').innerHTML = [0, 1, 2].map(i => `<i class="${i < game.lives ? '' : 'lost'}"></i>`).join('');
+  $('lives').setAttribute('aria-label', game.lives + (game.lives === 1 ? ' life left' : ' lives left'));
+}
+function flash(el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+function setMsg(html, primary = null) {
+  msgPrimary = primary;
+  if (!html) { msg.hidden = true; msg.innerHTML = ''; return; }
+  msg.innerHTML = powHTML(html); msg.hidden = false;
+}
+
+/* ---------- the asteroid field ---------- */
+const labelSize = () => (W < 520 || H < 300 ? 8 : W > 900 && H > 480 ? 12 : 10);
+function makeRock(i, lab) {
+  if (!lab) { const r = 14 + rnd(16); return { i, lab: '', r, rc: r, pw: 0, ph: 0, fs: 0, x: Math.random() * W, y: Math.random() * H, vx: (Math.random() - .5) * .4, vy: (Math.random() - .5) * .4, rot: Math.random() * 6, vr: (Math.random() - .5) * .01, seed: Math.random(), fade: 1, decor: true }; }
+  const fs = labelSize();
+  ctx.font = fs + 'px "Press Start 2P", monospace';
+  const tw = Math.ceil(ctx.measureText(lab).width);
+  const ph = fs + 12, pw = tw + ph + 10;
+  const r = Math.max(24, Math.min(P === 3 ? 60 : 46, Math.round(pw * .36)));
+  return { i, lab, pw, ph, fs, r, rc: Math.max(r, pw / 2 + 3), x: 0, y: 0, vx: 0, vy: 0, rot: Math.random() * 6, vr: (Math.random() - .5) * .012, seed: Math.random(), fade: 1 };
+}
+function rockImg(R) {
+  const col = R.decor ? C.soft : OPT_COL[R.i];
+  const key = [C.ink, C.faint, C.soft, col, R.r, scale].join();
+  if (R.img && R.imgKey === key) return R.img;
+  const cs = R.decor ? 2 : 3, n = Math.ceil(R.r * 1.25 / cs), size = (2 * n + 1) * cs;
+  const c = document.createElement('canvas');
+  c.width = Math.ceil(size * scale); c.height = Math.ceil(size * scale);
+  const g = c.getContext('2d'); g.scale(scale, scale);
+  let s = Math.floor(R.seed * 233280);
+  const rr = () => (s = (s * 9301 + 49297) % 233280) / 233280;
+  const harm = [1, 2, 3, 5].map(k => [k, rr() * 6.28, (.5 + rr() * .5) * .2 / k]);
+  const rad = th => R.r * (1 + harm.reduce((a, [k, p, m]) => a + m * Math.sin(k * th + p), 0));
+  const craters = [0, 1, 2].map(() => [(rr() - .5) * R.r, (rr() - .5) * R.r, R.r * (.12 + rr() * .12)]);
+  const inside = (x, y) => Math.hypot(x, y) < rad(Math.atan2(y, x));
+  for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) {
+    const x = i * cs, y = j * cs;
+    if (!inside(x, y)) continue;
+    const edge = !inside(x + cs, y) || !inside(x - cs, y) || !inside(x, y + cs) || !inside(x, y - cs);
+    const rim = !edge && !R.decor && (!inside(x + 2 * cs, y) || !inside(x - 2 * cs, y) || !inside(x, y + 2 * cs) || !inside(x, y - 2 * cs));
+    g.fillStyle = edge ? C.ink : rim ? col : craters.some(([cx, cy, cr]) => Math.hypot(x - cx, y - cy) < cr) ? C.soft : C.faint;
+    g.fillRect((i + n) * cs, (j + n) * cs, cs, cs);
+  }
+  R.img = c; R.imgKey = key; R.half = size / 2;
+  return c;
+}
+function spawnRocks() {
+  rocks = q.labs.map((lab, i) => makeRock(i, lab));
+  const corners = shuffle([[0, 0], [1, 0], [0, 1], [1, 1]]);
+  const L = LEVEL[game.lv];
+  rocks.forEach((R, k) => {
+    const [cx, cy] = corners[k];
+    R.tx = cx ? W - R.rc - 4 : R.rc + 4; R.ty = cy ? H - R.rc - 4 : R.rc + 4;
+    R.sx = cx ? W + R.rc * 2 : -R.rc * 2; R.sy = cy ? H + R.rc * 2 : -R.rc * 2;
+    R.x = R.sx; R.y = R.sy; R.vx = R.vy = 0;
+    // each rock reaches the ship in roughly the approach time, some a little sooner
+    R.sp = Math.hypot(W / 2 - R.tx, H / 2 - R.ty) / (L.approach * 60) * (.8 + Math.random() * .35) * game.speed;
+  });
+}
+function decorRocks() { rocks = [0, 1, 2, 3].map(i => makeRock(i, '')); }
+function moveRocks() {
+  const live = rocks.filter(R => !R.gone);
+  const homing = game.state === 'running' && phase === 'ask' && !mishap;
+  for (const R of live) {
+    R.rot += R.vr;
+    if (R.decor) { R.x += R.vx; R.y += R.vy; R.x = (R.x + W + 2 * R.r) % (W + 2 * R.r); R.y = (R.y + H + 2 * R.r) % (H + 2 * R.r); continue; }
+    if (R.fadeOut) { R.x += R.vx; R.y += R.vy; R.fade -= .035; if (R.fade <= 0) R.gone = true; continue; }
+    if (!homing) continue;
+    const dx = ship.x - R.x, dy = ship.y - R.y, d = Math.hypot(dx, dy) || 1;
+    R.vx += (dx / d * R.sp - R.vx) * .03; R.vy += (dy / d * R.sp - R.vy) * .03;
+    R.x += R.vx; R.y += R.vy;
+    R.x = clamp(R.x, R.rc, Math.max(R.rc, W - R.rc)); R.y = clamp(R.y, R.rc, Math.max(R.rc, H - R.rc));
+  }
+  // rocks bounce off each other, so labels never overlap
+  for (let a = 0; a < live.length; a++) for (let b = a + 1; b < live.length; b++) {
+    const A = live[a], B = live[b];
+    if (A.decor || B.decor || A.fadeOut || B.fadeOut) continue;
+    const dx = B.x - A.x, dy = B.y - A.y, d = Math.hypot(dx, dy) || .01;
+    const min = (A.rc + B.rc) * .8;
+    if (d >= min) continue;
+    const nx = dx / d, ny = dy / d, push = (min - d) / 2;
+    A.x -= nx * push; A.y -= ny * push; B.x += nx * push; B.y += ny * push;
+    const vn = (B.vx - A.vx) * nx + (B.vy - A.vy) * ny;
+    if (vn < 0) { A.vx += vn * nx; A.vy += vn * ny; B.vx -= vn * nx; B.vy -= vn * ny; }
+  }
+}
+function rockAt(x, y) {
+  let bi = -1, bd = 1e9;
+  for (const R of rocks) {
+    if (R.gone || R.decor || R.fadeOut || (q && q.out.has(R.i))) continue;
+    const inPlate = Math.abs(x - R.x) < R.pw / 2 + 6 && Math.abs(y - R.y) < R.ph / 2 + 8;
+    const d = Math.hypot(x - R.x, y - R.y);
+    if ((inPlate || d < R.r + 8) && d < bd) { bd = d; bi = R.i; }
+  }
+  return bi;
+}
+
+/* ---------- Vex's ship ---------- */
+const ship = { x: 300, y: 170, vx: 0, vy: 0, a: -Math.PI / 2, thr: false, lock: null, cool: 0, stun: 0, face: null };
+let shots = [], rockets = [];
+const keys = {};
+const shipLocal = (lx, ly, o = ship) => {
+  const fl = Math.cos(o.a) < 0 ? -1 : 1; ly *= fl * (o.sy == null ? 1 : Math.sign(o.sy) || 1);
+  return [o.x + (lx * Math.cos(o.a) - ly * Math.sin(o.a)) * P, o.y + (lx * Math.sin(o.a) + ly * Math.cos(o.a)) * P];
+};
+function fire(tgt = -1) {
+  const twin = game.streak >= 2;
+  const muzzles = twin ? [[6, -11], [6, 11]] : [[11, -2]];
+  for (const [lx, ly] of muzzles) {
+    const [x, y] = shipLocal(lx, ly);
+    shots.push({ x, y, vx: Math.cos(ship.a) * 8 + ship.vx, vy: Math.sin(ship.a) * 8 + ship.vy, life: 90, tgt });
+  }
+  ship.cool = 14;
+  beep(880, .04, 'square', .03);
+}
+function lockOn(i) {
+  if (game.state !== 'running' || phase !== 'ask' || !q || q.out.has(i) || mishap || ship.stun) return;
+  if (ship.lock || shots.some(s => s.tgt >= 0)) return;
+  ship.lock = { i, T: 0 };
+  document.querySelectorAll('.opt').forEach((b, k) => b.classList.toggle('aim', k === i));
+}
+const angTo = (x, y) => Math.atan2(y - ship.y, x - ship.x);
+const angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
+function turnToward(a, rate) { const d = angDiff(ship.a, a); ship.a += clamp(d, -rate, rate); return Math.abs(d); }
+function shipTick(ctrl) {
+  ship.thr = false;
+  if (ship.stun > 0) { ship.stun--; ship.a += .22 * ship.stun / 40; }
+  else if (!mishap) {
+    if (ship.lock) {
+      const R = rocks[ship.lock.i]; ship.lock.T++;
+      if (!R || R.gone) ship.lock = null;
+      else if (turnToward(angTo(R.x, R.y), .28) < .06 || ship.lock.T > 14) { fire(ship.lock.i); ship.lock = null; }
+    } else if (ctrl) {
+      if (keys.ArrowLeft) ship.a -= .075;
+      if (keys.ArrowRight) ship.a += .075;
+      if (keys.ArrowLeft || keys.ArrowRight) ship.face = null;
+      if (ship.face != null && turnToward(ship.face, .2) < .02) ship.face = null;
+      if (keys.ArrowUp) { ship.thr = true; ship.vx += Math.cos(ship.a) * .14; ship.vy += Math.sin(ship.a) * .14; }
+      if (keys.ArrowDown) { ship.vx *= .9; ship.vy *= .9; }
+      if (keys.Space && ship.cool <= 0) fire();
+    }
+  }
+  ship.cool--;
+  const sp = Math.hypot(ship.vx, ship.vy);
+  if (sp > 4.5) { ship.vx *= 4.5 / sp; ship.vy *= 4.5 / sp; }
+  ship.vx *= .985; ship.vy *= .985;
+  ship.x += ship.vx; ship.y += ship.vy;
+  const m = 14;
+  if (ship.x < -m) ship.x = W + m; if (ship.x > W + m) ship.x = -m;
+  if (ship.y < -m) ship.y = H + m; if (ship.y > H + m) ship.y = -m;
+  if (ship.inv > 0) ship.inv--;
+  if (phase === 'ask' && !(ship.inv > 0)) for (const R of rocks) {
+    if (R.gone || R.decor || R.fadeOut) continue;
+    const sr = 6 * P, onPlate = Math.abs(ship.x - R.x) < R.pw / 2 + sr && Math.abs(ship.y - R.y) < R.ph / 2 + sr;
+    if (onPlate || Math.hypot(ship.x - R.x, ship.y - R.y) < R.r * .85 + sr) { crash(R); break; }
+  }
+}
+// push the remaining rocks back out, so a crash doesn't chain into another
+function knockBack() {
+  for (const R of rocks) {
+    if (R.gone || R.decor || R.fadeOut) continue;
+    const dx = R.x - ship.x, dy = R.y - ship.y, d = Math.hypot(dx, dy) || 1;
+    R.vx = dx / d * 2; R.vy = dy / d * 2;
+    R.x += (R.tx - R.x) * .6; R.y += (R.ty - R.y) * .6;
+  }
+}
+function crash(R) {
+  const btns = document.querySelectorAll('.opt');
+  btns.forEach(b => b.classList.remove('aim'));
+  ship.lock = null; shots = [];
+  // a full shield takes the hit instead of a life
+  if (game.streak >= 6) {
+    for (let i = 0; i < 24; i++) { const a = i / 24 * 6.28; parts.push({ x: ship.x + Math.cos(a) * 15 * P, y: ship.y + Math.sin(a) * 15 * P, vx: Math.cos(a) * 2, vy: Math.sin(a) * 2, life: 30, max: 30, col: RAINBOW[i % 6], sz: 3 }); }
+    beep(700, .1, 'triangle', .05); setTimeout(() => beep(400, .15, 'triangle', .05), 90);
+    game.streak = 0; updHud(); ship.inv = 90;
+    say('Shield saved you!', 90);
+    knockBack();
+    return;
+  }
+  game.lives--; loseStreak(); updHud(); flash($('lives'));
+  ship.inv = 120; ship.stun = 40; flashA = RM.matches ? .1 : .35;
+  burst(ship.x, ship.y, RED); burst(ship.x, ship.y, '#f2c230');
+  beep(120, .3, 'sawtooth', .06); setTimeout(() => beep(70, .4, 'sawtooth', .05), 120);
+  say(game.lives ? pick(['Mayday!', 'Kaboom!', 'Ouch! Life lost!']) : 'Game over!', 90);
+  shatter(R);
+  if (R.i === q.correct) {
+    // the answer rock got through: no points, and the wave is over
+    if (q.tries === 0) game.rev.push(...q.refs);
+    q.result = 'miss'; game.missed++; game.step++; updHud();
+    btns.forEach(b => b.disabled = true); btns[q.correct].classList.add('ok');
+    rocks.forEach(o => { if (!o.gone) o.fadeOut = true; });
+    $('tries').textContent = '';
+    const fb = $('fb'); fb.className = 'fb bad';
+    fb.innerHTML = powHTML(`The right asteroid hit the ship! It was ${LETTERS[q.correct]}: ${q.labs[q.correct]}. ${q.why}<span class="w">You lose a life, and there are no points for this wave.</span>`);
+    revealEnd();
+    startPause();
+    return;
+  }
+  q.out.add(R.i); btns[R.i].disabled = true; btns[R.i].classList.add('no');
+  if (!game.lives) { phase = 'dead'; deadT = 0; return; }
+  knockBack();
+}
+function shotTick() {
+  for (const s of shots) {
+    if (s.tgt >= 0) {
+      const R = rocks[s.tgt];
+      if (R && !R.gone) { const dx = R.x - s.x, dy = R.y - s.y, d = Math.hypot(dx, dy) || 1; s.vx = dx / d * 9; s.vy = dy / d * 9; }
+    }
+    s.x += s.vx; s.y += s.vy; s.life--;
+    if (s.x < -10 || s.x > W + 10 || s.y < -10 || s.y > H + 10) s.life = 0;
+    if (s.life <= 0) continue;
+    for (const R of rocks) {
+      if (R.gone || R.decor || R.fadeOut || (q && q.out.has(R.i))) continue;
+      if (s.tgt >= 0 && s.tgt !== R.i) continue; // a locked-on shot only hits its target
+      const inPlate = Math.abs(s.x - R.x) < R.pw / 2 && Math.abs(s.y - R.y) < R.ph / 2 + 2;
+      if (inPlate || Math.hypot(s.x - R.x, s.y - R.y) < R.r) { s.life = 0; hitRock(R); break; }
+    }
+  }
+  shots = shots.filter(s => s.life > 0);
+}
+
+/* ---------- particles ---------- */
+let parts = [];
+function burst(x, y, c, txt = '') {
+  for (let i = 0; i < 12; i++) { const a = Math.random() * 6.28, v = 1 + Math.random() * 2.5; parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 30, max: 30, col: c, sz: 3 }); }
+  if (txt) parts.push({ x, y: y - 6, vx: 0, vy: -.6, life: 50, max: 50, txt });
+}
+function shatter(R) {
+  R.gone = true;
+  for (let i = 0; i < 26; i++) {
+    const a = Math.random() * 6.28, v = .6 + Math.random() * 2.8;
+    parts.push({ x: R.x + Math.cos(a) * R.r * .4, y: R.y + Math.sin(a) * R.r * .4, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 40 + rnd(20), max: 60, col: pick([C.ink, C.faint, C.soft, OPT_COL[R.i], OPT_COL[R.i]]), sz: 3 + rnd(4), spin: true });
+  }
+  beep(180, .18, 'sawtooth', .05); setTimeout(() => beep(110, .2, 'sawtooth', .04), 60);
+}
+function partTick() {
+  for (const p of parts) { p.x += p.vx; p.y += p.vy; if (p.g) p.vy += p.g; if (p.drag) { p.vx *= p.drag; p.vy *= p.drag; } p.life--; }
+  parts = parts.filter(p => p.life > 0);
+  for (const r of rockets) {
+    r.x += r.vx; r.y += r.vy; r.vy += .03; r.fuse--;
+    parts.push({ x: r.x, y: r.y, vx: 0, vy: 0, life: 12, max: 12, col: C.soft, sz: 2 });
+    if (r.fuse <= 0) {
+      for (let i = 0; i < 22; i++) { const a = i / 22 * 6.28, v = 1.5 + Math.random(); parts.push({ x: r.x, y: r.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 45, max: 45, col: r.col, sz: 3, g: .03, drag: .97 }); }
+      beep(500 + rnd(600), .08, 'triangle', .03);
+    }
+  }
+  rockets = rockets.filter(r => r.fuse > 0);
+}
+
+/* ---------- questions ---------- */
+function newQuestion() {
+  if (game.step >= plan.length) plan.push(...buildPlan(game.lv));
+  q = Object.assign({}, plan[game.step], { tries: 0, out: new Set(), result: null });
+  game.reached = game.step + 1;
+  phase = 'enter'; enterT = 0; shots = []; ship.lock = null; ship.face = null; ship.vx = ship.vy = 0; ship.stun = 0;
+  ship.home = [ship.x, ship.y]; ship.inv = 0;
+  spawnRocks();
+  renderQuestion();
+}
+function renderQuestion() {
+  showQuiz(true);
+  $('stepNo').textContent = `Wave ${game.step + 1}`;
+  $('tries').textContent = '';
+  $('clue').innerHTML = powHTML(esc(q.clue));
+  $('ask').innerHTML = powHTML(esc(q.ask));
+  document.querySelectorAll('.opt').forEach((b, i) => { b.className = 'opt'; b.disabled = false; b.querySelector('span').innerHTML = powHTML(esc(q.labs[i])); });
+  const fb = $('fb'); fb.className = 'fb'; fb.textContent = '';
+  $('go').hidden = true;
+  const card = $('card'); card.classList.remove('pop'); void card.offsetWidth; card.classList.add('pop');
+  quiz.scrollTop = 0;
+  stage.setAttribute('aria-label', `Wave ${game.step + 1}. Find ${q.clue}. Asteroids: ` + q.labs.map((l, i) => LETTERS[i] + ' ' + l).join(', ') + '.');
+}
+function hitRock(R) {
+  if (phase === 'auto') { if (R.i === q.correct) { shatter(R); rocks.forEach(o => { if (!o.gone) o.fadeOut = true; }); startCelebrate('plod'); } return; }
+  if (phase === 'ask') choose(R.i);
+}
+function choose(i) {
+  if (phase !== 'ask' || game.state !== 'running' || !q || q.out.has(i)) return;
+  const btns = document.querySelectorAll('.opt');
+  btns.forEach(b => b.classList.remove('aim'));
+  q.tries++;
+  if (i === q.correct) {
+    btns.forEach(b => b.disabled = true); btns[i].classList.add('ok');
+    right();
+    return;
+  }
+  q.out.add(i);
+  const R = rocks[i];
+  shatter(R); burst(R.x, R.y, RED);
+  if (q.tries === 1) game.rev.push(...q.refs, ...q.orefs[i]);
+  btns[i].classList.add('no', 'shake'); btns[i].disabled = true;
+  startMishap(R);
+  if (q.tries === 1) hint(q.pres[i]);
+  else {
+    shots = [];
+    btns.forEach(b => b.disabled = true); btns[q.correct].classList.add('ok');
+    miss(`Still not right. The answer is ${LETTERS[q.correct]}: ${q.labs[q.correct]}.`);
+  }
+}
+function hint(pre) {
+  beep(260, .1, 'triangle', .05);
+  const fb = $('fb'); fb.className = 'fb hint';
+  fb.innerHTML = powHTML(`${pre}<strong>One more go.</strong> Hint: ${q.hint}`);
+  $('tries').textContent = 'Second go';
+  revealEnd();
+}
+const revealEnd = () => requestAnimationFrame(() => quiz.scrollTo({ top: quiz.scrollHeight, behavior: 'smooth' }));
+function score(tries) {
+  const L = LEVEL[game.lv];
+  const secs = (performance.now() - q.t0) / 1000;
+  const acc = tries === 1 ? 100 : 40;
+  let spd = Math.round(50 * Math.max(0, 1 - secs / L.lim));
+  if (tries > 1) spd = Math.round(spd / 2);
+  let str = 0;
+  if (tries === 1) { game.streak++; game.bestStreak = Math.max(game.bestStreak, game.streak); str = Math.min(50, 10 * (game.streak - 1)); }
+  else loseStreak();
+  const k = 10 / QN;
+  game.accPts += acc * k; game.spdPts += spd * k; game.strPts += str * k;
+  game.raw += (acc + spd + str) * k;
+  const before = game.score;
+  game.score = Math.round(game.raw);
+  return { pts: game.score - before, spd, str };
+}
+// breaking the streak knocks the ship's upgrades off
+function loseStreak() {
+  if (game.streak >= 2) {
+    for (let i = 0; i < 14; i++) { const a = Math.random() * 6.28; parts.push({ x: ship.x, y: ship.y, vx: Math.cos(a) * 2, vy: Math.sin(a) * 2, life: 40, max: 40, col: pick(RAINBOW), sz: 3 }); }
+    setTimeout(() => say('Upgrades lost!', 70), 900);
+  }
+  game.streak = 0;
+}
+function right() {
+  const firstGo = q.tries === 1;
+  const s = score(q.tries);
+  q.result = firstGo ? 'ok' : 'ok2'; q.spd = s.spd;
+  if (firstGo) game.first++; else game.second++;
+  game.right++;
+  const faster = game.right % SPEEDUP === 0;
+  if (faster) {
+    game.speed *= SPEEDUP_BY;
+    lvlUp = { T: 0, N: 170, n: game.right / SPEEDUP + 1, pct: Math.round(game.speed * 100) };
+    [523, 659, 784, 1047, 1319].forEach((f, i) => setTimeout(() => beep(f, .1, 'square', .03), 250 + i * 80));
+    setTimeout(() => flash($('count')), 250);
+  }
+  const fb = $('fb'); fb.className = 'fb good';
+  const extras = [s.spd ? 'speed bonus' : '', s.str ? 'streak ×' + game.streak : ''].filter(Boolean).join(', ');
+  fb.innerHTML = powHTML(`${firstGo ? 'Right first time!' : 'Got it on the second go.'} ${q.why} <strong>+${s.pts}</strong>${extras ? ' (' + extras + ')' : ''}` +
+    (faster ? `<span class="w">${game.right} right! The asteroids now come in 50% faster.</span>` : ''));
+  beep(660, .07); setTimeout(() => beep(firstGo ? 990 : 830, .09), 70);
+  const R = rocks[q.correct];
+  shatter(R); burst(R.x, R.y - 10, PAL[game.step % 5], '+' + s.pts);
+  rocks.forEach(o => { if (!o.gone) o.fadeOut = true; });
+  shots = [];
+  game.step++; updHud(); flash($('score'));
+  revealEnd();
+  startCelebrate(chooseAntic());
+}
+function miss(text) {
+  // two wrong answers cost a life, as well as the wave
+  q.result = 'miss'; game.missed++; game.lives--; loseStreak(); game.step++; updHud(); flash($('lives'));
+  beep(200, .12, 'sawtooth', .035); setTimeout(() => beep(140, .2, 'sawtooth', .035), 110);
+  setTimeout(() => say(game.lives ? 'Life lost!' : 'Out of lives!', 90), 1200);
+  $('tries').textContent = '';
+  const fb = $('fb'); fb.className = 'fb bad';
+  fb.innerHTML = powHTML(`${text} ${q.why}<span class="w">Two wrong answers cost a life, and there are no points for this wave.</span>`);
+  revealEnd();
+  startPause();
+}
+// time to read the answer, then the game carries on by itself
+function startPause() {
+  phase = 'feedback'; fbT = 0;
+  $('cdFill').style.width = '100%'; $('go').hidden = false;
+}
+function proceed() {
+  if (phase !== 'feedback') return;
+  $('go').hidden = true;
+  mishap = null; ship.stun = 0;
+  if (game.lives <= 0) { phase = 'dead'; deadT = 0; burst(ship.x, ship.y, RED); burst(ship.x, ship.y, '#f2c230'); beep(90, .5, 'sawtooth', .06); return; }
+  if (rocks[q.correct].gone) { newQuestion(); return; }
+  phase = 'auto';
+  ship.lock = { i: q.correct, T: 0 };
+}
+function startCelebrate(A) {
+  cel = { A, T: 0, N: ANTIC[A].n, x0: ship.x, y0: ship.y, a0: ship.a, last: '' };
+  ship.vx = ship.vy = 0; ship.lock = null; mishap = null;
+  say(ANTIC[A].say(), Math.min(140, cel.N));
+  phase = 'celebrate';
+}
+function celebrateTick() {
+  const c = curA(); cel.T++;
+  if (!c) return;
+  // the crown medley announces each move
+  if (cel.A === 'crown' && c.seg >= 0 && cel.last !== c.A) { cel.last = c.A; say(MEDLEY_SAY[c.A], 70); }
+  const k = cel.A === 'crown' ? Math.floor(c.f * 60) : cel.T;
+  if (c.A === 'fireworks' && k % 16 === 0 && c.f < .7) rockets.push({ x: W * (.15 + Math.random() * .7), y: H, vx: (Math.random() - .5), vy: -(H / 70) - Math.random() * 1.5, fuse: 50 + rnd(15), col: pick(PAL) });
+  if (c.A === 'nova' && c.f > .05 && cel.novaFlash !== c.seg) { cel.novaFlash = c.seg; flashA = RM.matches ? .15 : .55; beep(90, .5, 'sawtooth', .05); }
+  if (c.A === 'warp' && (cel.T % 6 === 0)) beep(300 + c.f * 900, .05, 'triangle', .025);
+  if (c.A === 'disco' && cel.T % 12 === 0) beep(pick([523, 659, 784, 880]), .06, 'square', .025);
+  if (c.A === 'crowning' && c.f > .95 && !game.crown) { game.crown = true; [784, 988, 1175, 1568].forEach((f, i) => setTimeout(() => beep(f, .1), i * 90)); }
+  if (cel.T >= cel.N) {
+    cel = null;
+    newQuestion();
+  }
+}
+
+/* ---------- mishaps after a wrong shot ---------- */
+const MISHAPS = { bonk: 'Bonk!', splutter: 'Splutter...', blackout: 'Lights out!' };
+function startMishap(R) {
+  const k = Object.keys(MISHAPS)[mishapN++ % 3];
+  mishap = { k, T: 0, N: 70, fx: R.x, fy: R.y };
+  ship.lock = null; ship.vx *= .3; ship.vy *= .3;
+  say(MISHAPS[k], 70);
+  if (k === 'bonk') { beep(1200, .05, 'square', .04); setTimeout(() => beep(300, .15, 'triangle', .05), 260); }
+  else if (k === 'splutter') [0, 120, 260].forEach(d => setTimeout(() => beep(90 + rnd(40), .08, 'sawtooth', .04), d));
+  else beep(120, .4, 'sine', .06);
+}
+function mishapTick() {
+  if (!mishap) return;
+  mishap.T++;
+  if (mishap.k === 'splutter' && mishap.T % 6 === 0 && mishap.T < 55) {
+    const [x, y] = shipLocal(-12, -2);
+    parts.push({ x, y, vx: -Math.cos(ship.a) * .6 + (Math.random() - .5) * .4, vy: -Math.sin(ship.a) * .6 + (Math.random() - .5) * .4, life: 40, max: 40, col: C.soft, sz: 6, puff: true });
+  }
+  if (mishap.k === 'splutter') { ship.x -= Math.cos(ship.a) * .4; ship.y -= Math.sin(ship.a) * .4; }
+  if (mishap.T >= mishap.N) mishap = null;
+}
+
+/* ---------- where the ship is drawn (its antics) ---------- */
+const ease = f => f < .5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2;
+function shipPose() {
+  const o = { x: ship.x, y: ship.y, a: ship.a, sx: 1, sy: 1, flame: ship.thr, lift: 0 };
+  if (mishap) {
+    const g = mishap.T / mishap.N;
+    if (mishap.k === 'bonk' && mishap.T > 16) o.a += ease(Math.min(1, (mishap.T - 16) / (mishap.N - 26))) * Math.PI * 4;
+    if (mishap.k === 'splutter') { o.x += (Math.random() - .5) * 3; o.y += (Math.random() - .5) * 3; o.flame = Math.random() < .3; }
+    if (mishap.k === 'blackout') o.a += Math.sin(g * Math.PI * 6) * .1;
+  }
+  const c = curA();
+  if (!c) return o;
+  const { A, f } = c, x0 = cel.x0, y0 = cel.y0, a0 = cel.a0;
+  o.x = x0; o.y = y0; o.a = a0;
+  if (A === 'strut') o.a = a0 + Math.sin(f * Math.PI * 4) * .3 * (1 - f);
+  else if (A === 'twin' || A === 'phew') o.y = y0 - Math.abs(Math.sin(f * Math.PI * 3)) * 10;
+  else if (A === 'zoom') { const d = Math.sin(f * Math.PI) * Math.min(80, W * .2); o.x = x0 + Math.cos(a0) * d; o.y = y0 + Math.sin(a0) * d; o.flame = f < .5; }
+  else if (A === 'roll') o.sy = Math.cos(ease(f) * Math.PI * 2);
+  else if (A === 'loop') {
+    const R = 36, ph = ease(f) * Math.PI * 2, lx = R * Math.sin(ph), ly = -R * (1 - Math.cos(ph));
+    o.x = x0 + lx * Math.cos(a0) - ly * Math.sin(a0); o.y = y0 + lx * Math.sin(a0) + ly * Math.cos(a0); o.a = a0 - ph; o.flame = true;
+  }
+  else if (A === 'spin') { o.a = a0 + ease(f) * Math.PI * 4; o.flame = true; }
+  else if (A === 'lap') {
+    const cx = W / 2, cy = H / 2, rx = W / 2 - 40, ry = H / 2 - 36;
+    const p0 = Math.atan2((y0 - cy) / ry, (x0 - cx) / rx);
+    const at = ph => [cx + rx * Math.cos(ph), cy + ry * Math.sin(ph), Math.atan2(ry * Math.cos(ph), -rx * Math.sin(ph))];
+    if (f < .15) { const [x, y, a] = at(p0), u = ease(f / .15); o.x = x0 + (x - x0) * u; o.y = y0 + (y - y0) * u; o.a = Math.atan2(y - y0, x - x0) || a; }
+    else if (f < .85) { const [x, y, a] = at(p0 + (f - .15) / .7 * Math.PI * 2); o.x = x; o.y = y; o.a = a; }
+    else { const [x, y] = at(p0), u = ease((f - .85) / .15); o.x = x + (x0 - x) * u; o.y = y + (y0 - y) * u; o.a = a0 + (1 - u) * .5; }
+    o.flame = true;
+  }
+  else if (A === 'fireworks') o.y = y0 - Math.abs(Math.sin(f * Math.PI * 4)) * 8;
+  else if (A === 'disco') { o.a = a0 + Math.sin(f * Math.PI * 10) * .45; o.y = y0 - Math.abs(Math.sin(f * Math.PI * 10)) * 6; }
+  else if (A === 'ufo') {
+    const g = f < .3 ? 0 : f < .6 ? ease((f - .3) / .3) : f < .72 ? 1 : f < .82 ? 1 - ease((f - .72) / .1) : 0;
+    o.lift = g; o.y = y0 - g * (y0 - ufoY(y0) - 26) * .7; o.a = a0 + g * Math.sin(t / 10) * .6; o.sx = o.sy = 1 - g * .25;
+  }
+  else if (A === 'nova') o.a = a0 + ease(f) * Math.PI * 2;
+  else if (A === 'warp') { const s = Math.sin(f * Math.PI); o.sx = 1 + s * .5; o.x += (Math.random() - .5) * s * 4; o.flame = true; }
+  else if (A === 'plod') { o.a = a0 + Math.sin(f * Math.PI) * .35; o.y = y0 + Math.sin(f * Math.PI) * 6; }
+  return o;
+}
+const ufoY = y0 => Math.max(28, y0 - Math.min(130, H * .35));
+
+/* ---------- flow ---------- */
+function reset() {
+  game.rev = []; game.crown = false;
+  Object.assign(game, { step: 0, raw: 0, score: 0, streak: 0, bestStreak: 0, first: 0, second: 0, missed: 0, accPts: 0, spdPts: 0, strPts: 0, lives: 3, reached: 0, right: 0, speed: 1 });
+  bubble = null; deadT = 0; phase = 'idle'; q = null; cel = null; mishap = null; parts = []; shots = []; rockets = []; flashA = 0; lvlUp = null;
+  Object.assign(ship, { x: W / 2, y: H / 2, vx: 0, vy: 0, a: -Math.PI / 2, lock: null, stun: 0, face: null, inv: 0 });
+  decorRocks();
+  showQuiz(false);
+  updHud();
+}
+function startLevel() {
+  if (!learned[game.lv]) { setMode('learn'); return; }
+  if (reviewCount(game.lv)) { startReview(game.lv); return; }
+  reset(); plan = buildPlan(game.lv);
+  game.state = 'running'; game.tStart = performance.now(); game.elapsed = 0;
+  $('clock').textContent = '00:00';
+  setMsg(null);
+  newQuestion();
+}
+function goLevel(n) {
+  game.lv = n;
+  document.querySelectorAll('#levels button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.lv === n)));
+  if (mode === 'learn') { startLearn(n); return; }
+  leaveLearn();
+  game.state = 'ready'; $('clock').textContent = '00:00';
+  reset(); showHigh();
+  const r = LEVEL[n].ready;
+  if (!learned[n]) {
+    setMsg(`<p class="big">${r[0]}: lesson first</p>${codenameLine()}<div class="acts"><button class="btn" data-act="learn">Start the lesson</button><button class="btn ghost" data-act="load">Load my scores</button></div>${savedNote}${bestTable()}`, 'learn');
+    savedNote = '';
+    return;
+  }
+  const rv = reviewCount(n);
+  const note = rv ? `<p class="small gate">Vex will go over ${rv} tricky point${rv > 1 ? 's' : ''} first.</p>` : '';
+  setMsg(`<p class="big">${r[0]}: ${r[1]}</p>${codenameLine()}${note}<div class="acts"><button class="btn" data-act="start">${rv ? 'Review, then play' : 'Start'}</button><button class="btn ghost" data-act="save">Save my scores</button><button class="btn ghost" data-act="load">Load my scores</button></div><p class="small keys">Arrows fly · Space fires · tap or A–D locks on</p>${savedNote}${bestTable()}`, 'start');
+  savedNote = '';
+}
+
+/* ---------- Save my scores: downloads a copy of the game with the scores built in ---------- */
+let savedNote = '';
+function askName(err = '') {
+  game.state = 'naming';
+  setMsg(`<p class="big">Save my scores</p>
+    <p class="small">Type your first name and surname. They’re saved inside your file so Dr Benson knows whose scores they are.</p>
+    <div class="acts"><input id="nameIn" class="name" maxlength="40" autocomplete="off" spellcheck="false" aria-label="Your first name and surname"><button class="btn" data-act="saveName">Save</button></div>
+    <p class="small err">${esc(err)}</p>
+    <div class="acts"><button class="btn ghost" data-act="cancelSave">Cancel</button></div>`);
+  const inp = $('nameIn');
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); act('saveName'); } });
+  setTimeout(() => inp.focus({ preventScroll: true }), 30);
+}
+function saveName() {
+  const v = $('nameIn').value.trim().replace(/\s+/g, ' ');
+  if (v.length < 3 || !/ /.test(v)) { askName('Please type your first name and surname.'); return; }
+  playerName = v; // scores so far move across to this name
+  storeScores(); saveProgress(); showWho();
+  doSave();
+}
+// the .sav file is plain text: readable in Notepad, with the full data and a check code at the bottom
+function savText() {
+  const data = { game: 'prefix-panic', v: 1, name: playerName, saved: new Date().toISOString(), best: {}, played: { ...played }, learned: { ...learned }, review, codename: { ...cn } };
+  for (const id of LEVELS) if (bestRec[id]) data.best[id] = bestRec[id];
+  const total = LEVELS.reduce((s, id) => s + (bestRec[id] ? bestRec[id].score : 0), 0);
+  const games = LEVELS.reduce((s, id) => s + played[id], 0);
+  const L = [
+    "Dr Benson's Prefix Panic: saved scores",
+    'Name: ' + playerName,
+    'Leaderboard codename: ' + cn.name,
+    'Saved: ' + new Date().toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+    ''
+  ];
+  for (const id of LEVELS) {
+    const r = bestRec[id];
+    L.push(MEDAL[id][0] + ': ' + (r ? `${r.score} (${r.first}/${r.steps} right first time, ${fmtT(r.time)}, ${r.date})` : 'not played yet'));
+  }
+  L.push('Total: ' + total, 'Games played: ' + games, 'Lessons done: ' + (LEVELS.filter(id => learned[id]).map(id => MEDAL[id][0]).join(', ') || 'none'),
+    '', 'Do not edit this file. If anything in it changes, the check code won’t match and the game won’t load it.', '',
+    'Data: ' + JSON.stringify(data));
+  const body = normSav(L.join('\n'));
+  return body.replace(/\n/g, '\r\n') + '\r\nCheck: ' + sig(body) + '\r\n';
+}
+function doSave() {
+  const file = 'prefix-panic-' + slug(playerName) + '.sav';
+  try {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([savText()], { type: 'text/plain' }));
+    a.download = file; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+    savedNote = `<p class="small note">Saved as <strong>${esc(file)}</strong> in your Downloads. Move it to your own drive, replacing any older copy. Next time, press <strong>Load my scores</strong> and pick that file.</p>`;
+  } catch (e) { savedNote = '<p class="small err">Sorry, this browser wouldn’t save the file.</p>'; }
+  goLevel(game.lv);
+}
+function loadSav(text) {
+  const t = normSav(String(text));
+  const m = t.match(/^([\s\S]*)\nCheck: ([0-9a-z]+)$/);
+  let d = null;
+  if (m && /^Dr Benson's Prefix Panic/.test(t)) { const dl = m[1].match(/^Data: (.*)$/m); try { d = dl && JSON.parse(dl[1]); } catch (e) {} }
+  if (!d || d.game !== 'prefix-panic' || !d.name) savedNote = '<p class="small err">That isn’t a Prefix Panic save file. Pick the .sav file the game saved for you.</p>';
+  else if (sig(m[1]) !== m[2]) savedNote = '<p class="small err">That save file has been edited, so it can’t be loaded.</p>';
+  else {
+    saved = d; playerName = String(d.name);
+    if (d.codename && CN_RE.test(d.codename.name)) {
+      cn = { name: d.codename.name, rerolls: Math.max(0, Math.min(2, d.codename.rerolls | 0)), locked: !!d.codename.locked };
+      storeCodename();
+    }
+    loadScores(); loadProgress(); storeScores(); saveProgress(); showWho(); showHigh();
+    savedNote = `<p class="small note">Welcome back, <strong>${esc(playerName)}</strong>! Your saved scores are loaded.</p>`;
+  }
+  goLevel(game.lv);
+}
+function end() {
+  game.state = 'won'; game.endAt = performance.now();
+  const seen = new Set(), pts = [];
+  for (const r of game.rev) { const ri = refIdx(r), k = ri.join(':'); if (ri[1] != null && !seen.has(k)) { seen.add(k); pts.push(ri); } }
+  pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  if (pts.length) review[game.lv] = pts; else delete review[game.lv];
+  saveProgress();
+  game.elapsed = (game.endAt - game.tStart) / 1000;
+  $('clock').textContent = fmtT(game.elapsed);
+  showQuiz(false); phase = 'idle'; q = null;
+  decorRocks();
+  played[game.lv]++;
+  const prev = high[game.lv] || 0, nb = game.score > prev;
+  if (nb) {
+    high[game.lv] = game.score;
+    bestRec[game.lv] = { score: game.score, first: game.first, steps: game.step, time: Math.round(game.elapsed), date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) };
+    showHigh();
+    [660, 880, 1100, 1320, 1760].forEach((f, i) => setTimeout(() => beep(f, .12), i * 110));
+  } else [660, 880, 1100].forEach((f, i) => setTimeout(() => beep(f, .12), i * 110));
+  const nx = LEVEL[game.lv].next;
+  const btns = `<button class="btn" data-act="retry">Play again</button>` + (nx ? `<button class="btn ghost" data-act="next">${nx}</button>` : `<button class="btn ghost" data-act="first">Back to Bronze</button>`) + `<button class="btn ghost" data-act="save">Save my scores</button>`;
+  storeScores();
+  sendScore();
+  setMsg(`<p class="big">Out of lives!</p>
+    <p class="small">Wave ${game.reached} · ${Math.round(game.speed * 100)}% speed · ${fmtT(game.elapsed)}</p>
+    <div class="tally"><span>Accuracy</span><b>${Math.round(game.accPts)}</b><span>Speed</span><b>${Math.round(game.spdPts)}</b><span>Streaks (best ×${game.bestStreak})</span><b>${Math.round(game.strPts)}</b><span class="tot">Score</span><b class="tot">${game.score}</b></div>
+    <p class="small">${nb ? 'New high score!' : prev ? 'High score: ' + prev : ''}</p>
+    ${codenameLine()}<p class="lb" id="lbNote">${esc(lbState)}</p>
+    <div class="acts">${btns}</div>
+    ${bestTable(nb ? game.lv : 0)}`, 'retry');
+}
+function act(a) {
+  if (a === 'save') { if (playerName) doSave(); else askName(); return; }
+  if (a === 'saveName') { saveName(); return; }
+  if (a === 'cancelSave') { goLevel(game.lv); return; }
+  if (a === 'reroll') { rerollCodename(); return; }
+  if (a === 'go') { goLevel(game.lv); return; }
+  if (a === 'load') { $('loadIn').value = ''; $('loadIn').click(); return; }
+  if (a === 'start' || a === 'retry') startLevel();
+  else if (a === 'next') { goLevel(game.lv + 1); startLevel(); }
+  else if (a === 'first') goLevel(1);
+  else if (a === 'learn') setMode('learn');
+}
+function primary() {
+  if (game.state === 'intro') { goLevel(game.lv); return; }
+  if (game.state === 'ready') { startLevel(); return; }
+  if (game.state === 'won' && performance.now() - game.endAt > 800 && msgPrimary) act(msgPrimary);
+}
+
+/* ---------- step ---------- */
+function step() {
+  t++;
+  if (bubble && --bubble.life <= 0) bubble = null;
+  if (lvlUp && ++lvlUp.T >= lvlUp.N) lvlUp = null;
+  if (flashA > 0) flashA = Math.max(0, flashA - .03);
+  if (mode === 'learn' && game.state === 'learn') { learnTick(); partTick(); return; }
+  moveRocks();
+  partTick();
+  if (game.state !== 'running') {
+    ship.a += .004; ship.x += (W / 2 - ship.x) * .05; ship.y += (H / 2 - ship.y) * .05;
+    return;
+  }
+  if (phase === 'enter') {
+    enterT++;
+    const e = 1 - Math.pow(1 - Math.min(1, enterT / 50), 3);
+    for (const R of rocks) { R.x = R.sx + (R.tx - R.sx) * e; R.y = R.sy + (R.ty - R.sy) * e; }
+    ship.x = ship.home[0] + (W / 2 - ship.home[0]) * e; ship.y = ship.home[1] + (H / 2 - ship.home[1]) * e;
+    if (enterT >= 50) { phase = 'ask'; q.t0 = performance.now(); }
+    return;
+  }
+  if (phase === 'dead') {
+    deadT++;
+    if (deadT % 10 === 0 && deadT < 50) burst(ship.x + (Math.random() - .5) * 30, ship.y + (Math.random() - .5) * 30, pick(PAL));
+    if (deadT >= 110) end();
+    return;
+  }
+  if (phase === 'celebrate') {
+    celebrateTick();
+    const c = curA();
+    if (c && (game.streak >= 4 || c.A === 'loop' || c.A === 'lap')) trail();
+    return;
+  }
+  if (phase === 'feedback') { fbT++; $('cdFill').style.width = Math.max(0, 100 - fbT / FB_T * 100) + '%'; if (fbT >= FB_T) { proceed(); return; } }
+  mishapTick();
+  shipTick(phase === 'ask');
+  shotTick();
+  if (game.streak >= 4 && (Math.hypot(ship.vx, ship.vy) > .4 || ship.lock)) trail();
+}
+function trail() {
+  const o = shipPose(), [x, y] = shipLocal(-12, -2, o);
+  parts.push({ x, y, vx: (Math.random() - .5) * .3, vy: (Math.random() - .5) * .3, life: 26, max: 26, col: RAINBOW[Math.floor(t / 2) % 6], sz: 4 });
+}
+
+/* ---------- drawing ---------- */
+function line(ax, ay, bx, by) { ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); }
+const cfont = (size, font) => font === 'pix' ? `${size}px "Press Start 2P", monospace` : `700 ${size}px "Atkinson Hyperlegible", system-ui, sans-serif`;
+const supSize = size => Math.max(6, Math.round(size * .8));
+function segW(segs, size, font) {
+  return segs.map((s, i) => { ctx.font = cfont(i % 2 ? supSize(size) : size, font); return ctx.measureText(s).width; });
+}
+function label(text, x, y, size, align = 'center', col = C.ink, font = 'pix') {
+  ctx.fillStyle = col; ctx.textBaseline = 'middle';
+  const segs = powSegs(text);
+  if (segs.length === 1) {
+    ctx.textAlign = align; ctx.font = cfont(size, font);
+    ctx.fillText(text, Math.round(x), Math.round(y));
+  } else {
+    const ws = segW(segs, size, font), tot = ws.reduce((a, b) => a + b, 0);
+    let cx = x - (align === 'center' ? tot / 2 : align === 'right' ? tot : 0);
+    ctx.textAlign = 'left';
+    segs.forEach((s, i) => {
+      ctx.font = cfont(i % 2 ? supSize(size) : size, font);
+      ctx.fillText(s, Math.round(cx), Math.round(i % 2 ? y - size * .45 : y));
+      cx += ws[i];
+    });
+  }
+  ctx.textBaseline = 'alphabetic';
+}
+function textW(text, size) { return segW(powSegs(text), size, 'pix').reduce((a, b) => a + b, 0); }
+let stars = [];
+function initStars() { stars = Array.from({ length: 90 }, () => ({ x: Math.random(), y: Math.random(), z: .3 + Math.random() * .7, tw: Math.random() * 6.28 })); }
+initStars();
+function drawStars(still) {
+  const c = curA(), A = c && c.A;
+  const warp = A === 'warp' ? Math.sin(c.f * Math.PI) : 0;
+  stars.forEach((s, i) => {
+    if (!still) { s.x -= .00022 * s.z; if (s.x < 0) s.x += 1; }
+    const x = s.x * W, y = s.y * H;
+    if (warp > .05) {
+      const dx = x - W / 2, dy = y - H / 2, d = Math.hypot(dx, dy) || 1, L = warp * 90 * s.z * (d / Math.max(W, H) + .2);
+      ctx.strokeStyle = RAINBOW[i % 6]; ctx.lineWidth = 2; line(x, y, x + dx / d * L, y + dy / d * L);
+      return;
+    }
+    ctx.globalAlpha = .45 + .55 * Math.abs(Math.sin(t / 40 + s.tw));
+    ctx.fillStyle = A === 'disco' ? PAL[(Math.floor(t / 8) + i) % 5] : C.soft;
+    const sz = s.z > .85 ? 3 : 2;
+    ctx.fillRect(Math.round(x), Math.round(y), sz, sz);
+  });
+  ctx.globalAlpha = 1;
+}
+function drawRock(R) {
+  const out = q && q.out.has(R.i) && !R.decor;
+  const img = rockImg(R);
+  ctx.save();
+  ctx.globalAlpha = R.fade * (out ? .35 : 1);
+  ctx.translate(Math.round(R.x), Math.round(R.y)); ctx.rotate(R.rot);
+  ctx.drawImage(img, -R.half, -R.half, R.half * 2, R.half * 2);
+  ctx.restore();
+  if (R.decor) return;
+  ctx.save(); ctx.globalAlpha = R.fade;
+  const x0 = Math.round(R.x - R.pw / 2), y0 = Math.round(R.y - R.ph / 2);
+  const reveal = phase === 'feedback' && R.i === q.correct;
+  const aimed = (ship.lock && ship.lock.i === R.i) || (hoverI === R.i && phase === 'ask' && !out);
+  ctx.fillStyle = reveal ? GOOD : aimed ? OPT_COL[R.i] : C.ink;
+  const b = reveal ? 4 + Math.round(Math.abs(Math.sin(t / 8)) * 2) : aimed ? 3 : 2;
+  ctx.fillRect(x0 - b, y0 - b, R.pw + 2 * b, R.ph + 2 * b);
+  ctx.fillStyle = C.bg; ctx.fillRect(x0, y0, R.pw, R.ph);
+  const bs = R.ph - 6;
+  ctx.fillStyle = out ? C.soft : OPT_COL[R.i]; ctx.fillRect(x0 + 3, y0 + 3, bs, bs);
+  label(LETTERS[R.i], x0 + 3 + bs / 2 + .5, y0 + 3 + bs / 2 + 1, R.fs - 2, 'center', '#fff');
+  label(R.lab, x0 + bs + 8, y0 + R.ph / 2 + 1, R.fs, 'left', out ? C.soft : C.ink);
+  if (out) { ctx.strokeStyle = RED; ctx.lineWidth = 2; line(x0 - 2, R.y, x0 + R.pw + 2, R.y); }
+  ctx.restore();
+}
+// Dinosaurus Vex in flying pose, legs tucked, with a rocket pack strapped to his back (middle: column 11, row 8)
+const DSHIP = (() => {
+  const s = DINO_TOP.map(r => ('..' + r).split(''));
+  s.push('.......##.##..........'.split(''));
+  const put = (c, r, ch) => { s[r][c] = ch; };
+  for (let r = 4; r <= 8; r++) for (let c = 1; c <= 9; c++) put(c, r, r === 4 || r === 8 || c === 1 || c === 9 ? '#' : c === 4 ? 'f' : 'o');
+  for (let r = 5; r <= 7; r++) { put(10, r, 'f'); put(0, r, '#'); }
+  put(11, 6, 'f');
+  return s.map(r => r.join(''));
+})();
+function drawShip(o) {
+  const u = P;
+  ctx.save();
+  ctx.translate(Math.round(o.x), Math.round(o.y)); ctx.rotate(o.a);
+  // keep Vex's canopy on top when the ship points left
+  const fl = Math.cos(o.a) < 0 ? -1 : 1;
+  ctx.scale(o.sx, o.sy * fl);
+  const R = (c, x, y, w, h) => { ctx.fillStyle = c; ctx.fillRect(x * u, y * u, w * u, h * u); };
+  if (o.flame) {
+    const L = 3 + (Math.floor(t / 3) % 3);
+    R('#f07a2a', -11 - L, -3, L, 3); R('#f2c230', -11 - L + 1, -2, L - 1, 1);
+  }
+  // Vex himself, with his rocket pack
+  const twin = game.state === 'running' && game.streak >= 2;
+  if (twin) { R(C.ink, -3, -12, 9, 4); R(C.soft, -2, -11, 7, 2); R(C.ink, -3, 9, 9, 4); R(C.soft, -2, 10, 7, 2); }
+  const map = { '#': C.ink, g: '#2f8fd1', w: C.sail, t: '#e8508a', f: '#e8508a', s: '#e8508a', b: C.faint, o: C.soft };
+  for (let r = 0; r < DSHIP.length; r++) for (let c = 0; c < DSHIP[r].length; c++) {
+    const ch = DSHIP[r][c]; if (!(ch in map)) continue;
+    ctx.fillStyle = map[ch]; ctx.fillRect((c - 11) * u, (r - 8) * u, u, u);
+  }
+  if (game.crown) { const cx = 3, cy = -10; R(C.ink, cx - 1, cy - 1, 8, 4); R(GOLDC, cx, cy, 6, 2); R(GOLDC, cx, cy - 2, 1, 2); R(GOLDC, cx + 2, cy - 3, 2, 3); R(GOLDC, cx + 5, cy - 2, 1, 2); }
+  ctx.restore();
+  // shield bubble from a streak of 6
+  if (game.state === 'running' && game.streak >= 6) {
+    ctx.save(); ctx.strokeStyle = RAINBOW[Math.floor(t / 6) % 6]; ctx.lineWidth = 2; ctx.setLineDash([4, 4]); ctx.lineDashOffset = -t / 2;
+    ctx.beginPath(); ctx.arc(Math.round(o.x), Math.round(o.y), 15 * P, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+  }
+}
+function drawBubble(x, y, under = false) {
+  if (!bubble) return;
+  const fs = P === 3 ? 11 : 8;
+  ctx.font = fs + 'px "Press Start 2P", monospace';
+  const w = Math.ceil(ctx.measureText(bubble.text).width) + 14, h = fs + 12;
+  const bx = Math.max(4, Math.min(W - w - 4, Math.round(x - w / 2)));
+  let by = Math.round(y - h - 10), below = false;
+  if (by < 4 || under) { by = Math.round(y + 24 * P + 4); below = true; }
+  ctx.globalAlpha = Math.min(1, bubble.life / 12);
+  ctx.fillStyle = C.ink; ctx.fillRect(bx - 2, by - 2, w + 4, h + 4);
+  ctx.fillStyle = C.bg; ctx.fillRect(bx, by, w, h);
+  const tx = Math.max(bx + 6, Math.min(bx + w - 10, Math.round(x)));
+  ctx.fillStyle = C.ink;
+  if (below) { ctx.fillRect(tx, by - 6, 6, 4); ctx.fillRect(tx, by - 9, 3, 3); }
+  else { ctx.fillRect(tx, by + h + 2, 6, 4); ctx.fillRect(tx, by + h + 6, 3, 3); }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(bubble.text, bx + w / 2, by + h / 2 + 1);
+  ctx.textBaseline = 'alphabetic'; ctx.globalAlpha = 1;
+}
+// Vex reads out the value to convert, in a big bubble above his head
+function targetText() {
+  let u = q.ask.replace(/^Shoot it in /, '').replace(/\.$/, '');
+  if (u.startsWith('standard form, in ')) u = u.slice(18) + ' (standard form)';
+  return `${q.clue} in ${u}?`;
+}
+function drawTarget(x, y) {
+  const text = targetText();
+  let fs = P === 3 ? 16 : W > 700 && H > 400 ? 14 : 10;
+  while (fs > 7 && textW(text, fs) + 20 > W - 10) fs--;
+  const w = Math.ceil(textW(text, fs)) + 20, h = fs + 16;
+  const bx = clamp(Math.round(x - w / 2), 5, Math.max(5, W - w - 5)), by = Math.max(5, Math.round(y - h - 12));
+  // fade it a little if an asteroid label slides underneath, so that label stays readable
+  const dim = rocks.some(R => !R.gone && !R.decor && !R.fadeOut && R.x + R.pw / 2 > bx && R.x - R.pw / 2 < bx + w && R.y + R.ph / 2 > by && R.y - R.ph / 2 < by + h);
+  ctx.globalAlpha = dim ? .5 : 1;
+  ctx.fillStyle = C.ink; ctx.fillRect(bx - 3, by - 3, w + 6, h + 6);
+  ctx.fillStyle = C.bg; ctx.fillRect(bx, by, w, h);
+  if (by + h + 10 < y + 4) {
+    const tx = clamp(Math.round(x), bx + 6, bx + w - 12);
+    ctx.fillStyle = C.ink; ctx.fillRect(tx, by + h + 3, 7, 4); ctx.fillRect(tx, by + h + 7, 4, 4);
+  }
+  label(text, bx + w / 2, by + h / 2 + 1, fs);
+  ctx.globalAlpha = 1;
+}
+function drawParts() {
+  for (const p of parts) {
+    ctx.globalAlpha = Math.min(1, p.life / (p.max * .5));
+    if (p.txt) { label(p.txt, p.x, p.y, 10, 'center', C.ink); continue; }
+    ctx.fillStyle = p.col;
+    const s = p.puff ? p.sz * (1.6 - p.life / p.max) : p.sz;
+    ctx.fillRect(Math.round(p.x - s / 2), Math.round(p.y - s / 2), Math.round(s), Math.round(s));
+  }
+  ctx.globalAlpha = 1;
+  for (const r of rockets) { ctx.fillStyle = r.col; ctx.fillRect(Math.round(r.x) - 2, Math.round(r.y) - 2, 4, 4); }
+}
+function drawShots() {
+  for (const s of shots) {
+    ctx.fillStyle = s.tgt >= 0 ? OPT_COL[s.tgt] : '#e8508a';
+    ctx.fillRect(Math.round(s.x) - 2, Math.round(s.y) - 2, 5, 5);
+    ctx.fillStyle = C.ink; ctx.fillRect(Math.round(s.x - s.vx * .6) - 1, Math.round(s.y - s.vy * .6) - 1, 2, 2);
+  }
+}
+function drawUFO(x, y) {
+  const u = P, R = (c, a, b, w, h) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x) + a * u, Math.round(y) + b * u, w * u, h * u); };
+  const sh = [['#9fd6f5', -6, -7, 12, 5], ['#a3a8ae', -15, -2, 30, 4], ['#a3a8ae', -10, 2, 20, 2]];
+  for (const s of sh) R(C.ink, s[1] - 1, s[2] - 1, s[3] + 2, s[4] + 2);
+  for (const s of sh) R(s[0], s[1], s[2], s[3], s[4]);
+  for (let i = 0; i < 5; i++) R(PAL[(i + Math.floor(t / 6)) % 5], -12 + i * 6, -1, 2, 2);
+  R(C.ink, -2, -6, 4, 3); R('#3fae6a', -1, -5, 2, 1);
+}
+function drawCelUnder(o) {
+  const c = curA(); if (!c) return;
+  const { A, f } = c;
+  if (A === 'disco') {
+    const bx = W / 2, by = Math.min(60, H * .18) * Math.min(1, f * 5);
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 2; line(bx, 0, bx, by - 14);
+    ctx.save(); ctx.globalAlpha = .18;
+    for (let i = 0; i < 6; i++) {
+      const a = t / 30 + i * 1.05; ctx.fillStyle = PAL[i % 5];
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + Math.cos(a) * W, by + Math.sin(a) * W); ctx.lineTo(bx + Math.cos(a + .12) * W, by + Math.sin(a + .12) * W); ctx.fill();
+    }
+    ctx.restore();
+    for (let i = -3; i <= 3; i++) for (let j = -3; j <= 3; j++) {
+      if (i * i + j * j > 10) continue;
+      ctx.fillStyle = (i + j + Math.floor(t / 6)) % 3 === 0 ? PAL[(i * 3 + j + Math.floor(t / 5) + 20) % 5] : ((i + j) % 2 ? C.faint : C.soft);
+      ctx.fillRect(bx + i * 4 - 2, by + j * 4 - 2, 4, 4);
+    }
+  }
+  if (A === 'ufo') {
+    const uy = ufoY(cel.y0), ux = f < .3 ? -60 + (cel.x0 + 60) * ease(f / .3) : f < .82 ? cel.x0 : cel.x0 + (W + 80 - cel.x0) * ease((f - .82) / .18);
+    if (f > .3 && f < .78) {
+      ctx.save(); ctx.globalAlpha = .28 + Math.sin(t / 4) * .06; ctx.fillStyle = '#f2c230';
+      ctx.beginPath(); ctx.moveTo(ux - 14, uy + 8); ctx.lineTo(ux + 14, uy + 8); ctx.lineTo(cel.x0 + 34, cel.y0 + 24); ctx.lineTo(cel.x0 - 34, cel.y0 + 24); ctx.fill(); ctx.restore();
+    }
+    cel.ufo = [ux, uy];
+  }
+  if (A === 'nova') {
+    for (let k = 0; k < 6; k++) {
+      const r = (f * 1.3 - k * .1) * Math.max(W, H);
+      if (r <= 0) continue;
+      ctx.strokeStyle = RAINBOW[k]; ctx.lineWidth = 6; ctx.globalAlpha = Math.max(0, 1 - f);
+      ctx.beginPath(); ctx.arc(cel.x0, cel.y0, r, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+function drawCelOver(o) {
+  const c = curA(); if (!c) return;
+  if (c.A === 'ufo' && cel.ufo) drawUFO(cel.ufo[0], cel.ufo[1]);
+  if (c.A === 'crowning') {
+    const tx = o.x, ty = o.y - 26, y = -20 + (ty + 20) * ease(Math.min(1, c.f / .9));
+    ctx.fillStyle = C.ink; ctx.fillRect(Math.round(tx) - 8, Math.round(y) - 2, 16, 8);
+    ctx.fillStyle = GOLDC; ctx.fillRect(Math.round(tx) - 6, Math.round(y), 12, 4);
+    for (const k of [-6, -1, 4]) ctx.fillRect(Math.round(tx) + k, Math.round(y) - 4, 2, 4);
+  }
+}
+function drawMishap(o) {
+  if (!mishap) return;
+  const m = mishap;
+  if (m.k === 'bonk') {
+    if (m.T <= 16) { const u = m.T / 16; ctx.fillStyle = RED; ctx.fillRect(Math.round(m.fx + (o.x - m.fx) * u) - 3, Math.round(m.fy + (o.y - m.fy) * u) - 3, 6, 6); }
+    else for (let i = 0; i < 3; i++) {
+      const a = t / 8 + i * 2.1; ctx.fillStyle = '#f2c230';
+      const x = Math.round(o.x + Math.cos(a) * 18), y = Math.round(o.y - 22 + Math.sin(a) * 5);
+      ctx.fillRect(x - 1, y - 3, 2, 6); ctx.fillRect(x - 3, y - 1, 6, 2);
+    }
+  }
+  if (m.k === 'blackout') {
+    const g = m.T / m.N, a = g < .2 ? g / .2 : g > .8 ? (1 - g) / .2 : 1;
+    ctx.save(); ctx.globalAlpha = a * .88; ctx.fillStyle = '#101114';
+    ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.arc(o.x, o.y, 34, 0, Math.PI * 2, true); ctx.fill('evenodd');
+    ctx.globalAlpha = a * (Math.floor(t / 8) % 2 ? .9 : .3); ctx.strokeStyle = RED; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(o.x, o.y, 34, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+}
+function draw() {
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  if (mode === 'learn' && game.state === 'learn') { drawLearn(); return; }
+  drawStars(false);
+  const o = shipPose();
+  drawCelUnder(o);
+  for (const R of rocks) if (!R.gone) drawRock(R);
+  drawShots();
+  drawParts();
+  if (phase !== 'dead' && !(ship.inv > 0 && game.state === 'running' && Math.floor(t / 5) % 2)) drawShip(o);
+  drawMishap(o);
+  drawCelOver(o);
+  if (flashA > 0) { ctx.globalAlpha = flashA; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+  if (game.state === 'running') {
+    const c = curA(), showT = !!q && ['enter', 'ask', 'feedback', 'auto'].includes(phase);
+    if (showT) drawTarget(o.x, o.y - 12 * P);
+    drawBubble(o.x, o.y - 12 * P, showT || (!!c && c.A === 'ufo'));
+    drawLevelUp();
+  }
+}
+// "LEVEL UP!" pops in near the top of the field, flashes through the palette, then fades
+function drawLevelUp() {
+  if (!lvlUp) return;
+  const f = lvlUp.T / lvlUp.N, still = RM.matches;
+  const pop = still ? 1 : Math.min(1, lvlUp.T / 10);
+  const big = P === 3 ? 30 : W < 520 ? 16 : 22, small = P === 3 ? 12 : 8;
+  const word = 'LEVEL UP!', sub = `Speed level ${lvlUp.n}: ${lvlUp.pct}%`;
+  ctx.font = big + 'px "Press Start 2P", monospace';
+  const bw = ctx.measureText(word).width;
+  ctx.font = small + 'px "Press Start 2P", monospace';
+  const w = Math.ceil(Math.max(bw, ctx.measureText(sub).width)) + 32, h = big + small + 34;
+  const cx = W / 2, cy = Math.max(h / 2 + 8, H * .2);
+  ctx.save();
+  ctx.globalAlpha = f > .85 ? (1 - f) / .15 : 1;
+  ctx.translate(cx, cy); ctx.scale(pop, pop);
+  ctx.fillStyle = C.ink; ctx.fillRect(-w / 2 - 3, -h / 2 - 3, w + 6, h + 6);
+  ctx.fillStyle = C.bg; ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = big + 'px "Press Start 2P", monospace';
+  // each letter takes the next palette colour, and the colours roll along
+  let x = -bw / 2;
+  for (let i = 0; i < word.length; i++) {
+    const cw = ctx.measureText(word[i]).width;
+    ctx.fillStyle = word[i] === ' ' ? C.ink : PAL[(i + (still ? 0 : Math.floor(lvlUp.T / 6))) % PAL.length];
+    ctx.fillText(word[i], x + cw / 2, -h / 2 + 12 + big / 2 + (still ? 0 : Math.round(Math.sin(lvlUp.T / 5 + i * .7) * 2)));
+    x += cw;
+  }
+  ctx.fillStyle = C.ink; ctx.font = small + 'px "Press Start 2P", monospace';
+  ctx.fillText(sub, 0, h / 2 - 10 - small / 2);
+  ctx.restore();
+  ctx.textBaseline = 'alphabetic';
+}
+
+/* ---------- Learn mode ---------- */
+let mode = 'play';
+const LS = { lv: 1, i: 0, T: 0, pos: 0, seq: [], home: 1, review: false, demo: null };
+const wrapEl = document.querySelector('.wrap'), learnEl = $('learn');
+const curStep = () => LEARN[LS.lv][LS.i];
+function setMode(m) {
+  mode = m;
+  document.querySelectorAll('#modes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === m)));
+  goLevel(game.lv);
+}
+function openLearn(home, seq, isReview) {
+  Object.assign(LS, { home, seq, review: isReview });
+  game.state = 'learn'; $('clock').textContent = '00:00';
+  setMsg(null); quiz.hidden = true; learnEl.hidden = false; mainEl.classList.remove('idle');
+  wrapEl.classList.add('learning'); $('barLabel').textContent = isReview ? 'Review' : 'Steps';
+  enterStep(0);
+}
+function startLearn(n) { openLearn(n, LEARN[n].map((_, i) => [n, i]), false); }
+function startReview(n) {
+  mode = 'learn';
+  document.querySelectorAll('#modes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === 'learn')));
+  openLearn(n, review[n].slice(), true);
+}
+function finishLearn() {
+  const n = LS.home, wasReview = LS.review;
+  if (wasReview) { delete review[n]; saveProgress(); } else markLearned(n);
+  mode = 'play';
+  document.querySelectorAll('#modes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === 'play')));
+  goLevel(n);
+  startLevel(); // straight into the game after a lesson or a review
+}
+function leaveLearn() {
+  learnEl.hidden = true; wrapEl.classList.remove('learning'); $('barLabel').textContent = 'Speed';
+}
+const KEYWORDS = /\b(kilo|mega|milli|micro|giga|nano|pico|standard form|smaller unit|bigger unit|square the factor|cube the factor|kilowatt-hour|radians|one step|two steps|top and bottom separately)\b/gi;
+function lessonHTML(x) {
+  return powHTML(x.split(/(?<=[.!?:])\s+(?=[A-Z(])/).map(s => '<p>' + s.replace(KEYWORDS, '<b>$1</b>') + '</p>').join(''));
+}
+function enterStep(i) {
+  const seq = LS.seq;
+  LS.pos = Math.max(0, Math.min(seq.length - 1, i));
+  [LS.lv, LS.i] = seq[LS.pos];
+  const st = curStep();
+  LS.T = 0; parts = []; LS.demo = null;
+  if (st.vis.type === 'ship') setupDemo(st.vis);
+  bubble = st.say ? { text: st.say, life: 1e9 } : null;
+  $('learnStep').textContent = LS.review
+    ? `Review ${LS.pos + 1} of ${seq.length}: from the ${MEDAL[LS.lv][0]} lesson`
+    : `${MEDAL[LS.lv][0]} lesson, step ${LS.pos + 1} of ${seq.length}`;
+  $('learnTitle').textContent = st.t;
+  $('learnText').innerHTML = lessonHTML(st.x);
+  const last = LS.pos === seq.length - 1;
+  if (last && !LS.review) markLearned(LS.home);
+  $('lBack').disabled = LS.pos === 0;
+  $('lNext').textContent = last ? `Play ${MEDAL[LS.home][0]}` : 'Next';
+  $('lAgain').hidden = !last || LS.review;
+  $('count').textContent = (LS.pos + 1) + '/' + seq.length;
+  $('barFill').style.width = ((LS.pos + 1) / seq.length * 100) + '%';
+  const card = $('learnCard'); card.classList.remove('pop'); void card.offsetWidth; card.classList.add('pop');
+  learnEl.scrollTop = 0;
+}
+function learnNext() {
+  if (LS.pos < LS.seq.length - 1) { beep(520, .05, 'triangle', .04); enterStep(LS.pos + 1); }
+  else finishLearn();
+}
+function learnBack() { if (LS.pos > 0) { beep(420, .05, 'triangle', .04); enterStep(LS.pos - 1); } }
+
+// the "how to play" demo: Vex locks on and blasts the right asteroid
+function setupDemo(v) {
+  const rs = v.labs.map((l, i) => makeRock(i, l));
+  const spots = [[.24, .3], [.76, .3], [.24, .76], [.76, .76]];
+  rs.forEach((R, k) => { R.x = clamp(W * spots[k][0], R.rc + 4, W - R.rc - 4); R.y = clamp(H * spots[k][1], R.rc + 4, H - R.rc - 4); R.vr = .004; });
+  LS.demo = { rs, ok: v.ok, a: -Math.PI / 2 };
+}
+function learnTick() {
+  LS.T++;
+  const d = LS.demo;
+  if (d) {
+    const k = LS.T % 240, R = d.rs[d.ok];
+    d.rs.forEach(r => { r.rot += r.vr; });
+    if (k === 1) { d.rs.forEach(r => { r.gone = false; }); d.a = -Math.PI / 2; d.shot = null; }
+    const target = Math.atan2(R.y - H / 2, R.x - W / 2);
+    if (k > 50 && k < 90) d.a += angDiff(d.a, target) * .15;
+    if (k === 90) { d.shot = [W / 2, H / 2]; beep(880, .04, 'square', .02); }
+    if (d.shot && k < 140) {
+      const dx = R.x - d.shot[0], dy = R.y - d.shot[1], dd = Math.hypot(dx, dy);
+      if (dd < 10) { d.shot = null; shatter(R); burst(R.x, R.y, PAL[2]); }
+      else { d.shot[0] += dx / dd * 7; d.shot[1] += dy / dd * 7; }
+    }
+  }
+}
+let K = 1;
+function drawLearn() {
+  const st = curStep(), v = st.vis;
+  K = clamp(Math.min(W / 420, (H - 60) / 300), 1, 2.2);
+  drawStars(true);
+  if (v.type === 'ship' && LS.demo) {
+    const d = LS.demo;
+    for (const R of d.rs) if (!R.gone) drawRock(R);
+    if (d.shot) { ctx.fillStyle = OPT_COL[d.ok]; ctx.fillRect(Math.round(d.shot[0]) - 2, Math.round(d.shot[1]) - 2, 5, 5); }
+    drawParts();
+    const o = { x: W / 2, y: H / 2, a: d.a, sx: 1, sy: 1, flame: false };
+    drawShip(o);
+    if (v.top) { const fs = Math.round(9 * Math.min(K, 1.6)), w = textW(v.top, fs) + 16, h = fs * 2; ctx.fillStyle = C.ink; ctx.fillRect(W / 2 - w / 2 - 2, 4, w + 4, h + 4); ctx.fillStyle = C.bg; ctx.fillRect(W / 2 - w / 2, 6, w, h); label(v.top, W / 2, 6 + h / 2 + 1, fs); }
+    drawBubble(W / 2, H / 2 - 24);
+    return;
+  }
+  // Vex stands bottom left, with his bubble beside him
+  const A = { x0: 12, x1: W - 12, y0: 12, y1: H - 30 * P };
+  drawDino(10 * P + 10, H - 8, 1, 0, Math.abs(Math.sin(LS.T / 20)) * 2);
+  if (bubble) {
+    const fs = 4 * P, h = 10 * P, bx = 22 * P + 14, by = H - 8 - 14 * P - h / 2;
+    const w = Math.min(W - bx - 8, Math.ceil(textW(bubble.text, fs)) + 14);
+    ctx.fillStyle = C.ink; ctx.fillRect(bx - 2, by - 2, w + 4, h + 4); ctx.fillRect(bx - 8, by + h / 2 - 2, 6, 4);
+    ctx.fillStyle = C.bg; ctx.fillRect(bx, by, w, h);
+    label(bubble.text, bx + w / 2, by + h / 2 + 1, fs);
+  }
+  if (v.type === 'hop') drawHop(v, A, LS.T);
+  else if (v.type === 'ladder') drawLadder(v, A, LS.T);
+  else if (v.type === 'chain') drawChain(v, A, LS.T);
+  else if (v.type === 'grid') drawGrid(A, LS.T);
+  else if (v.type === 'cube') drawCube(A, LS.T);
+  else if (v.type === 'wheel') drawWheel(A, LS.T);
+}
+const fitSize = (texts, maxW, big) => { let s = big; while (s > 7 && Math.max(...texts.map(x => textW(x, s))) > maxW) s--; return s; };
+function drawHop(v, A, T) {
+  const [N, x] = norm(...parseM(v.num));
+  const D = String(N), len = D.length, p0 = len + x, sh = v.shift, p1 = p0 + sh, n = Math.abs(sh);
+  const T0 = 50, HOP = 28, PER = T0 + n * HOP + 150, k = T % PER;
+  const hops = k < T0 ? 0 : Math.min(n, (k - T0) / HOP);
+  const done = Math.floor(hops + 1e-9), frac = hops - done;
+  const pCur = p0 + Math.sign(sh) * hops, pSet = p0 + Math.sign(sh) * done;
+  const lo = Math.min(0, p0 - 1, p1 - 1), hi = Math.max(len, p0, p1), cells = hi - lo;
+  const aw = A.x1 - A.x0;
+  const cw = Math.max(14, Math.min(34 * K, (aw - (v.sf ? 110 * K : 20)) / (cells + .5))), ch = Math.round(cw * 1.3);
+  const fs = Math.max(8, Math.round(cw * .55));
+  const totalW = cells * cw + (v.sf ? textW('× 10⁻⁰', fs) + 12 : 0);
+  const cx0 = Math.round((A.x0 + A.x1) / 2 - totalW / 2), cy = Math.round((A.y0 + A.y1) / 2 - ch / 2);
+  const ts = fitSize([v.top, v.end], aw, Math.round(12 * K));
+  label(v.top, (A.x0 + A.x1) / 2, Math.max(A.y0 + 8, cy - cw * 1.4 - ts), ts);
+  for (let c = lo; c < hi; c++) {
+    const X = cx0 + (c - lo) * cw;
+    const real = c >= 0 && c < len;
+    const sig = real || (c < 0 && c >= pSet) || (c >= len && c < pSet) || (c === pSet - 1 && pSet <= 0);
+    ctx.strokeStyle = sig ? C.ink : C.faint; ctx.lineWidth = 2; ctx.strokeRect(X + 2, cy, cw - 4, ch);
+    label(real ? D[c] : '0', X + cw / 2, cy + ch / 2 + 1, fs, 'center', sig ? (real ? C.ink : '#3fae6a') : C.faint);
+  }
+  // hop arcs for the hops already made, and the point riding the current one
+  ctx.strokeStyle = '#f07a2a'; ctx.lineWidth = Math.max(2, Math.round(K * 1.5));
+  for (let h = 0; h < done; h++) {
+    const a = p0 + Math.sign(sh) * h, b = a + Math.sign(sh), xa = cx0 + (a - lo) * cw, xb = cx0 + (b - lo) * cw;
+    ctx.beginPath(); ctx.moveTo(xa, cy - 4); ctx.quadraticCurveTo((xa + xb) / 2, cy - 4 - cw * .7, xb, cy - 4); ctx.stroke();
+  }
+  const px = cx0 + (pCur - lo) * cw, lift = done < n && k >= T0 ? Math.sin(frac * Math.PI) * cw * .9 : 0;
+  const ps = Math.max(8, Math.round(cw / 4)); ctx.fillStyle = '#e8508a'; ctx.fillRect(Math.round(px - ps / 2), Math.round(cy + ch - ps - lift), ps, ps);
+  if (v.sf) {
+    const pw = v.base - Math.sign(sh) * done;
+    label('× 10' + sup(pw), cx0 + cells * cw + 10, cy + ch / 2 + 1, fs, 'left', '#2f8fd1');
+  }
+  const note = v.sf ? `${done} hop${done === 1 ? '' : 's'} ${sh < 0 ? 'left' : 'right'}` : `${v.note}: ${done} hop${done === 1 ? '' : 's'} ${sh > 0 ? 'right' : 'left'}`;
+  label(note, (A.x0 + A.x1) / 2, cy + ch + ts * 2, Math.max(8, ts - 2), 'center', '#f07a2a');
+  if (done === n) label(v.end, (A.x0 + A.x1) / 2, Math.min(A.y1 - 6, cy + ch + ts * 4.4), ts, 'center', '#3fae6a');
+}
+const MULTW = { G: '× 1' + NB + '000' + NB + '000' + NB + '000', M: '× 1' + NB + '000' + NB + '000', k: '× 1000', '': '× 1', m: '÷ 1000', 'µ': '÷ 1' + NB + '000' + NB + '000', n: '÷ 10⁹', p: '÷ 10¹²' };
+function drawLadder(v, A, T) {
+  const rs = v.rungs, n = rs.length;
+  const rh = Math.min(32 * K, (A.y1 - A.y0) / n), gap = 4;
+  const fs = fitSize(rs.map(s => `${s || '–'} ${PNAME[s] || 'no prefix'}   ${v.pow ? '10⁻¹²' : MULTW[s]}`), (A.x1 - A.x0) * .7 - 20, Math.round(10 * K));
+  const bw = Math.min(320 * K, Math.round((A.x1 - A.x0) * .7));
+  const bx = Math.round(A.x0 + (A.x1 - A.x0 - bw) / 2 - (v.from != null ? 34 * K : 0));
+  const by = Math.round(A.y0 + (A.y1 - A.y0 - n * rh) / 2);
+  const iF = v.from != null ? rs.indexOf(v.from) : -1, iT = v.to != null ? rs.indexOf(v.to) : -1;
+  const steps = Math.abs(iT - iF), dir = Math.sign(iT - iF), PER = 60 + steps * 50 + 120, k = T % PER;
+  const moved = iF < 0 ? 0 : Math.min(steps, Math.max(0, (k - 60) / 50));
+  rs.forEach((s, i) => {
+    const y = by + i * rh;
+    const on = (v.hl && v.hl.includes(s)) || i === iF || i === iT;
+    ctx.fillStyle = on ? C.faint : C.bg; ctx.fillRect(bx, y + gap / 2, bw, rh - gap);
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.strokeRect(bx, y + gap / 2, bw, rh - gap);
+    label(`${s || '–'} ${PNAME[s] || 'no prefix'}`, bx + 8, y + rh / 2 + 1, fs, 'left', s === '' ? C.soft : C.ink);
+    label(v.pow ? (s === '' ? '10⁰' : '10' + sup(PFX[s])) : MULTW[s], bx + bw - 8, y + rh / 2 + 1, fs, 'right', s === '' ? C.soft : '#2f8fd1');
+  });
+  if (iF < 0) return;
+  // Vex's marker climbs the ladder; each step changes the number by 1000
+  const ax = bx + bw + 14 * K;
+  for (let s = 0; s < Math.floor(moved + 1e-9); s++) {
+    const ya = by + (iF + dir * s) * rh + rh / 2, yb = ya + dir * rh;
+    ctx.strokeStyle = dir > 0 ? '#3fae6a' : '#e8508a'; ctx.lineWidth = 3; line(ax, ya, ax, yb);
+    ctx.fillStyle = ctx.strokeStyle; ctx.fillRect(ax - 4, yb - (dir > 0 ? 6 : -2), 8, 4);
+    label(dir > 0 ? 'number × 1000' : 'number ÷ 1000', ax + 10, (ya + yb) / 2 + 1, Math.max(7, fs - 2), 'left', ctx.strokeStyle);
+  }
+  const my = by + (iF + dir * moved) * rh + rh / 2;
+  const ms = Math.round(10 * K); ctx.fillStyle = '#f07a2a'; ctx.fillRect(bx - ms - 6, Math.round(my - ms / 2), ms, ms);
+}
+function drawChain(v, A, T) {
+  const shown = Math.min(v.lines.length, 1 + Math.floor(T / 50));
+  const fs = fitSize(v.lines, A.x1 - A.x0 - 16, Math.round(14 * K)), lh = fs * 2.4;
+  const w = Math.max(...v.lines.map(l => textW(l, fs)));
+  const x = Math.round((A.x0 + A.x1) / 2 - w / 2), y0 = (A.y0 + A.y1) / 2 - (v.lines.length - 1) * lh / 2;
+  v.lines.forEach((l, i) => {
+    if (i >= shown) return;
+    ctx.globalAlpha = Math.min(1, (T - i * 50) / 20 + .05);
+    label(l, x, y0 + i * lh, fs, 'left', i === v.lines.length - 1 && !v.list ? '#3fae6a' : C.ink);
+  });
+  ctx.globalAlpha = 1;
+}
+function drawGrid(A, T) {
+  const f1 = Math.round(8 * K), f2 = Math.round(10 * K);
+  const S = Math.floor(Math.min(A.y1 - A.y0 - 6 * f2, A.x1 - A.x0 - 60, 220 * K) / 10) * 10, c = S / 10;
+  const x0 = Math.round((A.x0 + A.x1) / 2 - S / 2), y0 = Math.round(A.y0 + 2.4 * f2);
+  const filled = Math.min(100, Math.floor((T % 260) / 1.6));
+  for (let i = 0; i < filled; i++) { ctx.fillStyle = PAL[(i + Math.floor(i / 10)) % 5]; ctx.globalAlpha = .45; ctx.fillRect(x0 + (i % 10) * c + 1, y0 + Math.floor(i / 10) * c + 1, c - 2, c - 2); }
+  ctx.globalAlpha = 1; ctx.strokeStyle = C.faint; ctx.lineWidth = 1;
+  for (let i = 1; i < 10; i++) { line(x0 + i * c, y0, x0 + i * c, y0 + S); line(x0, y0 + i * c, x0 + S, y0 + i * c); }
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.strokeRect(x0, y0, S, S);
+  label('1 cm = 10 mm', x0 + S / 2, y0 - f2, f1);
+  label(`${filled} mm²`, x0 + S / 2, y0 + S + 1.6 * f2, f2, 'center', filled === 100 ? '#3fae6a' : C.ink);
+  if (filled === 100) label('1 cm² = 100 mm²', x0 + S / 2, Math.min(A.y1, y0 + S + 3.6 * f2), f2, 'center', '#3fae6a');
+}
+function drawCube(A, T) {
+  const f1 = Math.round(9 * K);
+  const S = Math.min(A.y1 - A.y0 - 7 * f1 - 20, (A.x1 - A.x0) * .45, 150 * K), d = S * .45;
+  const x0 = Math.round((A.x0 + A.x1) / 2 - (S + d) / 2), y0 = Math.round(A.y0 + 20 + d);
+  const g = Math.min(1, (T % 300) / 150);
+  const P3 = (x, y) => [x0 + x, y0 + y];
+  const face = (pts, col) => { ctx.fillStyle = col; ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); ctx.fill(); ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.stroke(); };
+  face([P3(0, 0), P3(S, 0), P3(S, S), P3(0, S)], C.faint);
+  face([P3(0, 0), P3(d, -d), P3(S + d, -d), P3(S, 0)], C.sail);
+  face([P3(S, 0), P3(S + d, -d), P3(S + d, S - d), P3(S, S)], C.soft);
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 1; ctx.globalAlpha = .5;
+  const L = Math.round(10 * g);
+  for (let i = 1; i < L; i++) {
+    const f = i / 10;
+    line(...P3(S * f, 0), ...P3(S * f, S)); line(...P3(0, S * f), ...P3(S, S * f));
+    line(...P3(S * f, 0), ...P3(S * f + d, -d)); line(...P3(d * f, -d * f), ...P3(S + d * f, -d * f));
+    line(...P3(S + d * f, -d * f), ...P3(S + d * f, S - d * f)); line(...P3(S, S * f), ...P3(S + d, S * f - d));
+  }
+  ctx.globalAlpha = 1;
+  label('10 cm', x0 + S / 2, y0 + S + 1.5 * f1, f1);
+  label(`10 × 10 × ${L} = ${L * 100} cm³`, (A.x0 + A.x1) / 2, Math.min(A.y1 - 2 * f1, y0 + S + 3.6 * f1), f1, 'center', L === 10 ? '#3fae6a' : C.ink);
+  if (L === 10) label('= 1 L = 0.001 m³', (A.x0 + A.x1) / 2, Math.min(A.y1, y0 + S + 5.6 * f1), f1, 'center', '#3fae6a');
+}
+function drawWheel(A, T) {
+  const f1 = Math.round(9 * K);
+  const R = Math.min((A.y1 - A.y0) / 2 - 3 * f1, (A.x1 - A.x0) / 2 - 20, 90 * K);
+  const cx = (A.x0 + A.x1) / 2, cy = A.y0 + R + 10;
+  const k = T % 200, th = Math.min(1, k / 140) * Math.PI * 2;
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = '#f07a2a'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(cx, cy, R - 8, 0, th); ctx.stroke();
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 3; line(cx, cy, cx + Math.cos(th) * R, cy + Math.sin(th) * R);
+  ctx.fillStyle = C.ink; ctx.fillRect(cx - 4, cy - 4, 8, 8);
+  label(k >= 140 ? '1 rev = 2π rad ≈ 6.28 rad' : (th).toFixed(2) + ' rad', cx, cy + R + 1.8 * f1, f1, 'center', k >= 140 ? '#3fae6a' : C.ink);
+}
+
+/* ---------- loop ---------- */
+const STEP = 1000 / 60;
+let last = performance.now(), acc = 0;
+function frame(now) {
+  acc += Math.min(100, now - last); last = now;
+  while (acc >= STEP) { step(); acc -= STEP; }
+  draw();
+  if (game.state === 'running' && t % 6 === 0) { game.elapsed = (performance.now() - game.tStart) / 1000; $('clock').textContent = fmtT(game.elapsed); }
+  requestAnimationFrame(frame);
+}
+
+/* ---------- input ---------- */
+const toGame = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * W, (e.clientY - r.top) / r.height * H]; };
+stage.addEventListener('pointerdown', e => {
+  if (e.target.closest('.msg button, .msg input')) return;
+  e.preventDefault();
+  if (mode === 'learn') return;
+  if (game.state === 'running') {
+    if (phase !== 'ask') return;
+    const [x, y] = toGame(e), i = rockAt(x, y);
+    if (i >= 0) lockOn(i); else ship.face = angTo(x, y);
+    return;
+  }
+  primary();
+});
+stage.addEventListener('pointermove', e => {
+  hoverI = game.state === 'running' && phase === 'ask' ? rockAt(...toGame(e)) : -1;
+  stage.style.cursor = hoverI >= 0 || game.state !== 'running' ? 'pointer' : 'crosshair';
+});
+stage.addEventListener('pointerleave', () => { hoverI = -1; });
+msg.addEventListener('click', e => { const b = e.target.closest('button[data-act]'); if (b) act(b.dataset.act); });
+document.querySelectorAll('.opt').forEach(b => b.addEventListener('click', () => lockOn(+b.dataset.i)));
+const KEYS = { Digit1: 0, Numpad1: 0, KeyA: 0, Digit2: 1, Numpad2: 1, KeyB: 1, Digit3: 2, Numpad3: 2, KeyC: 2, Digit4: 3, Numpad4: 3, KeyD: 3 };
+const FLY = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'];
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return; // typing a name
+  if (e.code === 'KeyM') { soundOn = !soundOn; return; } // M mutes
+  const onButton = e.target.closest && e.target.closest('button');
+  if (mode === 'learn') {
+    if (e.code === 'ArrowRight' || ((e.code === 'Space' || e.code === 'Enter') && !onButton)) { e.preventDefault(); if (!e.repeat) learnNext(); }
+    else if (e.code === 'ArrowLeft') { e.preventDefault(); learnBack(); }
+    return;
+  }
+  if (game.state === 'running') {
+    if (FLY.includes(e.code)) { e.preventDefault(); keys[e.code] = true; return; }
+    if (phase === 'ask' && e.code in KEYS) { e.preventDefault(); lockOn(KEYS[e.code]); }
+    return;
+  }
+  if ((e.code === 'Space' || e.code === 'Enter') && !onButton) { e.preventDefault(); if (!e.repeat) primary(); }
+});
+document.querySelectorAll('#levels button').forEach(b => b.addEventListener('click', () => {
+  const n = +b.dataset.lv;
+  mode = learned[n] ? 'play' : 'learn';
+  document.querySelectorAll('#modes button').forEach(m => m.setAttribute('aria-pressed', String(m.dataset.mode === mode)));
+  goLevel(n);
+  if (mode === 'play') startLevel();
+  b.blur();
+}));
+document.querySelectorAll('#modes button').forEach(b => b.addEventListener('click', () => { setMode(b.dataset.mode); b.blur(); }));
+$('lNext').addEventListener('click', learnNext);
+$('lBack').addEventListener('click', learnBack);
+$('lAgain').addEventListener('click', () => enterStep(0));
+
+$('loadIn').addEventListener('change', e => {
+  const f = e.target.files && e.target.files[0]; if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => loadSav(rd.result);
+  rd.onerror = () => { savedNote = '<p class="small err">Sorry, that file couldn’t be read.</p>'; goLevel(game.lv); };
+  rd.readAsText(f);
+});
+showWho();
+resize();
+showIntro();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
